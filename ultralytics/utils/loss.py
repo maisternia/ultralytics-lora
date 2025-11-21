@@ -214,6 +214,10 @@ class v8DetectionLoss:
         self.bbox_loss = BboxLoss(m.reg_max).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
 
+        self.height_loss = nn.SmoothL1Loss(reduction="none")  # Add height loss
+        self.height_loss_weight = getattr(model.args, "height_loss_weight", 0.0)  # Default weight 0.2
+        self.loss_names = ["box_loss", "cls_loss", "dfl_loss", "height_loss"]  # Add height_loss to names
+
     def preprocess(self, targets: torch.Tensor, batch_size: int, scale_tensor: torch.Tensor) -> torch.Tensor:
         """Preprocess targets by converting to tensor format and scaling coordinates."""
         nl, ne = targets.shape
@@ -242,7 +246,7 @@ class v8DetectionLoss:
 
     def __call__(self, preds: Any, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
-        loss = torch.zeros(3, device=self.device)  # box, cls, dfl
+        loss = torch.zeros(4, device=self.device)  # box, cls, dfl, height
         feats = preds[1] if isinstance(preds, tuple) else preds
         pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
             (self.reg_max * 4, self.nc), 1
@@ -290,12 +294,72 @@ class v8DetectionLoss:
                 pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
             )
 
+            # Add height loss calculation
+            pred_heights = pred_bboxes[fg_mask, 3]  # Get predicted heights
+            target_heights = target_bboxes[fg_mask, 3]  # Get target heights
+
+            loss[3] = self.khz_height_loss(pred_heights, target_heights)
+
+        # WARNING: lines below prevent Multi-GPU DDP 'unused gradient' PyTorch errors, do not remove
+        else:
+            loss[1] += (proto * 0).sum() + (pred_masks * 0).sum()  # inf sums may lead to nan loss
+
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
-
+        loss[3] *= self.height_loss_weight  # height loss gain
+        # print(f"\nHeight Loss: {loss[3] :.3f}")
+        
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
+    def log_height_loss(
+        self,
+        pred_heights: torch.Tensor,
+        target_heights: torch.Tensor,
+    ) -> torch.Tensor:
+
+        # Calculate height loss using log space for scale invariance
+        eps = 1e-7  # Small epsilon to prevent log(0)
+        height_loss = self.height_loss(
+            torch.log(pred_heights + eps),
+            torch.log(target_heights + eps),
+        ).mean()
+
+        return height_loss
+
+    def khz_height_loss(
+        self,
+        pred_heights: torch.Tensor,
+        target_heights: torch.Tensor,
+        sample_rate: float = 32e6,
+        range_fraction: float = 0.25,
+    ) -> torch.Tensor:
+
+        # Convert heights to measured bandwidths
+        pred_bw_hz = self.bandwidth_from_box_height(
+            pred_heights, sample_rate, range_fraction
+        )
+        target_bw_hz = self.bandwidth_from_box_height(
+            target_heights, sample_rate, range_fraction
+        )
+
+        # Calculate height loss as the difference between measured and target bandwidths
+        height_loss = self.log_height_loss(pred_bw_hz, target_bw_hz)
+
+        return height_loss
+    
+    def bandwidth_from_box_height(
+        self,
+        box_heights: torch.Tensor,
+        sample_rate: float,
+        range_fraction: float,
+    ) -> torch.Tensor:
+        """Convert bounding box heights to measured bandwidths in Hz."""
+        # Assuming box height is proportional to bandwidth in spectrogram
+        max_bandwidth_hz = sample_rate
+        measured_bandwidths_hz = box_heights * (max_bandwidth_hz * range_fraction)
+
+        return measured_bandwidths_hz
 
 class v8SegmentationLoss(v8DetectionLoss):
     """Criterion class for computing training losses for YOLOv8 segmentation."""
