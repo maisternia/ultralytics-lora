@@ -295,10 +295,11 @@ class v8DetectionLoss:
             )
 
             # Add height loss calculation
-            pred_heights = pred_bboxes[fg_mask, 3]  # Get predicted heights
-            target_heights = target_bboxes[fg_mask, 3]  # Get target heights
-
-            loss[3] = self.khz_height_loss(pred_heights, target_heights)
+            if self.height_loss_weight > 0:
+                pred_heights = pred_bboxes[fg_mask, 3]  # Get predicted heights
+                target_heights = target_bboxes[fg_mask, 3]  # Get target heights
+                loss[3] = self.khz_height_loss(pred_heights, target_heights)
+                print(f"\nHeight Loss: {loss[3] * self.height_loss_weight :.3f}")
 
         # WARNING: lines below prevent Multi-GPU DDP 'unused gradient' PyTorch errors, do not remove
         else:
@@ -307,8 +308,7 @@ class v8DetectionLoss:
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
-        loss[3] *= self.height_loss_weight  # height loss gain
-        # print(f"\nHeight Loss: {loss[3] :.3f}")
+        loss[3] *= self.height_loss_weight  # height loss gain        
         
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
