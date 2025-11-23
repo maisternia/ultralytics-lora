@@ -95,14 +95,6 @@ keywords: Ultralytics, YOLO, Comet, callbacks, logging, machine learning, monito
 
 <br><br><hr><br>
 
-## ::: ultralytics.utils.callbacks.comet._log_asset
-
-<br><br><hr><br>
-
-## ::: ultralytics.utils.callbacks.comet._log_table
-
-<br><br><hr><br>
-
 ## ::: ultralytics.utils.callbacks.comet.on_pretrain_routine_start
 
 <br><br><hr><br>

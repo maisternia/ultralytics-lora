@@ -1,11 +1,8 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 import math
-from collections import Counter, defaultdict
-from functools import lru_cache
-from typing import Any
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -30,31 +27,31 @@ class BaseSolution:
         Polygon: Class for creating polygon geometries from shapely.
         Point: Class for creating point geometries from shapely.
         prep: Prepared geometry function from shapely for optimized spatial operations.
-        CFG (dict[str, Any]): Configuration dictionary loaded from YAML file and updated with kwargs.
+        CFG (Dict[str, Any]): Configuration dictionary loaded from YAML file and updated with kwargs.
         LOGGER: Logger instance for solution-specific logging.
         annotator: Annotator instance for drawing on images.
         tracks: YOLO tracking results from the latest inference.
         track_data: Extracted tracking data (boxes or OBB) from tracks.
-        boxes (list): Bounding box coordinates from tracking results.
-        clss (list[int]): Class indices from tracking results.
-        track_ids (list[int]): Track IDs from tracking results.
-        confs (list[float]): Confidence scores from tracking results.
+        boxes (List): Bounding box coordinates from tracking results.
+        clss (List[int]): Class indices from tracking results.
+        track_ids (List[int]): Track IDs from tracking results.
+        confs (List[float]): Confidence scores from tracking results.
         track_line: Current track line for storing tracking history.
         masks: Segmentation masks from tracking results.
         r_s: Region or line geometry object for spatial operations.
         frame_no (int): Current frame number for logging purposes.
-        region (list[tuple[int, int]]): List of coordinate tuples defining region of interest.
+        region (List[Tuple[int, int]]): List of coordinate tuples defining region of interest.
         line_width (int): Width of lines used in visualizations.
         model (YOLO): Loaded YOLO model instance.
-        names (dict[int, str]): Dictionary mapping class indices to class names.
-        classes (list[int]): List of class indices to track.
+        names (Dict[int, str]): Dictionary mapping class indices to class names.
+        classes (List[int]): List of class indices to track.
         show_conf (bool): Flag to show confidence scores in annotations.
         show_labels (bool): Flag to show class labels in annotations.
         device (str): Device for model inference.
-        track_add_args (dict[str, Any]): Additional arguments for tracking configuration.
+        track_add_args (Dict[str, Any]): Additional arguments for tracking configuration.
         env_check (bool): Flag indicating whether environment supports image display.
         track_history (defaultdict): Dictionary storing tracking history for each object.
-        profilers (tuple): Profiler instances for performance monitoring.
+        profilers (Tuple): Profiler instances for performance monitoring.
 
     Methods:
         adjust_box_label: Generate formatted label for bounding box.
@@ -72,7 +69,7 @@ class BaseSolution:
         >>> solution.display_output(image)
     """
 
-    def __init__(self, is_cli: bool = False, **kwargs: Any) -> None:
+    def __init__(self, is_cli: bool = False, **kwargs):
         """
         Initialize the BaseSolution class with configuration settings and YOLO model.
 
@@ -83,61 +80,62 @@ class BaseSolution:
         self.CFG = vars(SolutionConfig().update(**kwargs))
         self.LOGGER = LOGGER  # Store logger object to be used in multiple solution classes
 
-        check_requirements("shapely>=2.0.0")
-        from shapely.geometry import LineString, Point, Polygon
-        from shapely.prepared import prep
+        if self.__class__.__name__ != "VisualAISearch":
+            check_requirements("shapely>=2.0.0")
+            from shapely.geometry import LineString, Point, Polygon
+            from shapely.prepared import prep
 
-        self.LineString = LineString
-        self.Polygon = Polygon
-        self.Point = Point
-        self.prep = prep
-        self.annotator = None  # Initialize annotator
-        self.tracks = None
-        self.track_data = None
-        self.boxes = []
-        self.clss = []
-        self.track_ids = []
-        self.track_line = None
-        self.masks = None
-        self.r_s = None
-        self.frame_no = -1  # Only for logging
+            self.LineString = LineString
+            self.Polygon = Polygon
+            self.Point = Point
+            self.prep = prep
+            self.annotator = None  # Initialize annotator
+            self.tracks = None
+            self.track_data = None
+            self.boxes = []
+            self.clss = []
+            self.track_ids = []
+            self.track_line = None
+            self.masks = None
+            self.r_s = None
+            self.frame_no = -1  # Only for logging
 
-        self.LOGGER.info(f"Ultralytics Solutions: ✅ {self.CFG}")
-        self.region = self.CFG["region"]  # Store region data for other classes usage
-        self.line_width = self.CFG["line_width"]
+            self.LOGGER.info(f"Ultralytics Solutions: ✅ {self.CFG}")
+            self.region = self.CFG["region"]  # Store region data for other classes usage
+            self.line_width = self.CFG["line_width"]
 
-        # Load Model and store additional information (classes, show_conf, show_label)
-        if self.CFG["model"] is None:
-            self.CFG["model"] = "yolo11n.pt"
-        self.model = YOLO(self.CFG["model"])
-        self.names = self.model.names
-        self.classes = self.CFG["classes"]
-        self.show_conf = self.CFG["show_conf"]
-        self.show_labels = self.CFG["show_labels"]
-        self.device = self.CFG["device"]
+            # Load Model and store additional information (classes, show_conf, show_label)
+            if self.CFG["model"] is None:
+                self.CFG["model"] = "yolo11n.pt"
+            self.model = YOLO(self.CFG["model"])
+            self.names = self.model.names
+            self.classes = self.CFG["classes"]
+            self.show_conf = self.CFG["show_conf"]
+            self.show_labels = self.CFG["show_labels"]
+            self.device = self.CFG["device"]
 
-        self.track_add_args = {  # Tracker additional arguments for advance configuration
-            k: self.CFG[k] for k in {"iou", "conf", "device", "max_det", "half", "tracker"}
-        }  # verbose must be passed to track method; setting it False in YOLO still logs the track information.
+            self.track_add_args = {  # Tracker additional arguments for advance configuration
+                k: self.CFG[k] for k in ["iou", "conf", "device", "max_det", "half", "tracker"]
+            }  # verbose must be passed to track method; setting it False in YOLO still logs the track information.
 
-        if is_cli and self.CFG["source"] is None:
-            d_s = "solutions_ci_demo.mp4" if "-pose" not in self.CFG["model"] else "solution_ci_pose_demo.mp4"
-            self.LOGGER.warning(f"source not provided. using default source {ASSETS_URL}/{d_s}")
-            from ultralytics.utils.downloads import safe_download
+            if is_cli and self.CFG["source"] is None:
+                d_s = "solutions_ci_demo.mp4" if "-pose" not in self.CFG["model"] else "solution_ci_pose_demo.mp4"
+                self.LOGGER.warning(f"source not provided. using default source {ASSETS_URL}/{d_s}")
+                from ultralytics.utils.downloads import safe_download
 
-            safe_download(f"{ASSETS_URL}/{d_s}")  # download source from ultralytics assets
-            self.CFG["source"] = d_s  # set default source
+                safe_download(f"{ASSETS_URL}/{d_s}")  # download source from ultralytics assets
+                self.CFG["source"] = d_s  # set default source
 
-        # Initialize environment and region setup
-        self.env_check = check_imshow(warn=True)
-        self.track_history = defaultdict(list)
+            # Initialize environment and region setup
+            self.env_check = check_imshow(warn=True)
+            self.track_history = defaultdict(list)
 
-        self.profilers = (
-            ops.Profile(device=self.device),  # track
-            ops.Profile(device=self.device),  # solution
-        )
+            self.profilers = (
+                ops.Profile(device=self.device),  # track
+                ops.Profile(device=self.device),  # solution
+            )
 
-    def adjust_box_label(self, cls: int, conf: float, track_id: int | None = None) -> str | None:
+    def adjust_box_label(self, cls: int, conf: float, track_id: Optional[int] = None) -> Optional[str]:
         """
         Generate a formatted label for a bounding box.
 
@@ -156,7 +154,7 @@ class BaseSolution:
         name = ("" if track_id is None else f"{track_id} ") + self.names[cls]
         return (f"{name} {conf:.2f}" if self.show_conf else name) if self.show_labels else None
 
-    def extract_tracks(self, im0: np.ndarray) -> None:
+    def extract_tracks(self, im0: np.ndarray):
         """
         Apply object tracking and extract tracks from an input image or frame.
 
@@ -184,7 +182,7 @@ class BaseSolution:
             self.LOGGER.warning("no tracks found!")
             self.boxes, self.clss, self.track_ids, self.confs = [], [], [], []
 
-    def store_tracking_history(self, track_id: int, box) -> None:
+    def store_tracking_history(self, track_id: int, box):
         """
         Store the tracking history of an object.
 
@@ -193,7 +191,7 @@ class BaseSolution:
 
         Args:
             track_id (int): The unique identifier for the tracked object.
-            box (list[float]): The bounding box coordinates of the object in the format [x1, y1, x2, y2].
+            box (List[float]): The bounding box coordinates of the object in the format [x1, y1, x2, y2].
 
         Examples:
             >>> solution = BaseSolution()
@@ -205,7 +203,7 @@ class BaseSolution:
         if len(self.track_line) > 30:
             self.track_line.pop(0)
 
-    def initialize_region(self) -> None:
+    def initialize_region(self):
         """Initialize the counting region and line segment based on configuration settings."""
         if self.region is None:
             self.region = [(10, 200), (540, 200), (540, 180), (10, 180)]
@@ -213,7 +211,7 @@ class BaseSolution:
             self.Polygon(self.region) if len(self.region) >= 3 else self.LineString(self.region)
         )  # region or line
 
-    def display_output(self, plot_im: np.ndarray) -> None:
+    def display_output(self, plot_im: np.ndarray):
         """
         Display the results of the processing, which could involve showing frames, printing counts, or saving results.
 
@@ -239,10 +237,10 @@ class BaseSolution:
                 cv2.destroyAllWindows()  # Closes current frame window
                 return
 
-    def process(self, *args: Any, **kwargs: Any):
+    def process(self, *args, **kwargs):
         """Process method should be implemented by each Solution subclass."""
 
-    def __call__(self, *args: Any, **kwargs: Any):
+    def __call__(self, *args, **kwargs):
         """Allow instances to be called like a function with flexible arguments."""
         with self.profilers[1]:
             result = self.process(*args, **kwargs)  # Call the subclass-specific process method
@@ -252,10 +250,8 @@ class BaseSolution:
         result.speed = {track_or_predict: track_or_predict_speed, "solution": solution_speed}
         if self.CFG["verbose"]:
             self.frame_no += 1
-            counts = Counter(self.clss)  # Only for logging.
             LOGGER.info(
-                f"{self.frame_no}: {result.plot_im.shape[0]}x{result.plot_im.shape[1]} {solution_speed:.1f}ms,"
-                f" {', '.join([f'{v} {self.names[k]}' for k, v in counts.items()])}\n"
+                f"{self.frame_no}: {result.plot_im.shape[0]}x{result.plot_im.shape[1]} {solution_speed:.1f}ms\n"
                 f"Speed: {track_or_predict_speed:.1f}ms {track_or_predict}, "
                 f"{solution_speed:.1f}ms solution per image at shape "
                 f"(1, {getattr(self.model, 'ch', 3)}, {result.plot_im.shape[0]}, {result.plot_im.shape[1]})\n"
@@ -291,7 +287,8 @@ class SolutionAnnotator(Annotator):
         display_objects_labels: Annotate bounding boxes with object class labels.
         sweep_annotator: Visualize a vertical sweep line and optional label.
         visioneye: Map and connect object centroids to a visual "eye" point.
-        adaptive_label: Draw a circular or rectangle background shape label in center of a bounding box.
+        circle_label: Draw a circular label within a bounding box.
+        text_label: Draw a rectangular label within a bounding box.
 
     Examples:
         >>> annotator = SolutionAnnotator(image)
@@ -304,8 +301,8 @@ class SolutionAnnotator(Annotator):
     def __init__(
         self,
         im: np.ndarray,
-        line_width: int | None = None,
-        font_size: int | None = None,
+        line_width: Optional[int] = None,
+        font_size: Optional[int] = None,
         font: str = "Arial.ttf",
         pil: bool = False,
         example: str = "abc",
@@ -325,16 +322,16 @@ class SolutionAnnotator(Annotator):
 
     def draw_region(
         self,
-        reg_pts: list[tuple[int, int]] | None = None,
-        color: tuple[int, int, int] = (0, 255, 0),
+        reg_pts: Optional[List[Tuple[int, int]]] = None,
+        color: Tuple[int, int, int] = (0, 255, 0),
         thickness: int = 5,
     ):
         """
         Draw a region or line on the image.
 
         Args:
-            reg_pts (list[tuple[int, int]], optional): Region points (for line 2 points, for region 4+ points).
-            color (tuple[int, int, int]): RGB color value for the region.
+            reg_pts (List[Tuple[int, int]], optional): Region points (for line 2 points, for region 4+ points).
+            color (Tuple[int, int, int]): RGB color value for the region.
             thickness (int): Line thickness for drawing the region.
         """
         cv2.polylines(self.im, [np.array(reg_pts, dtype=np.int32)], isClosed=True, color=color, thickness=thickness)
@@ -346,18 +343,18 @@ class SolutionAnnotator(Annotator):
     def queue_counts_display(
         self,
         label: str,
-        points: list[tuple[int, int]] | None = None,
-        region_color: tuple[int, int, int] = (255, 255, 255),
-        txt_color: tuple[int, int, int] = (0, 0, 0),
+        points: Optional[List[Tuple[int, int]]] = None,
+        region_color: Tuple[int, int, int] = (255, 255, 255),
+        txt_color: Tuple[int, int, int] = (0, 0, 0),
     ):
         """
         Display queue counts on an image centered at the points with customizable font size and colors.
 
         Args:
             label (str): Queue counts label.
-            points (list[tuple[int, int]], optional): Region points for center point calculation to display text.
-            region_color (tuple[int, int, int]): RGB queue region color.
-            txt_color (tuple[int, int, int]): RGB text display color.
+            points (List[Tuple[int, int]], optional): Region points for center point calculation to display text.
+            region_color (Tuple[int, int, int]): RGB queue region color.
+            txt_color (Tuple[int, int, int]): RGB text display color.
         """
         x_values = [point[0] for point in points]
         y_values = [point[1] for point in points]
@@ -392,9 +389,9 @@ class SolutionAnnotator(Annotator):
     def display_analytics(
         self,
         im0: np.ndarray,
-        text: dict[str, Any],
-        txt_color: tuple[int, int, int],
-        bg_color: tuple[int, int, int],
+        text: Dict[str, Any],
+        txt_color: Tuple[int, int, int],
+        bg_color: Tuple[int, int, int],
         margin: int,
     ):
         """
@@ -402,9 +399,9 @@ class SolutionAnnotator(Annotator):
 
         Args:
             im0 (np.ndarray): Inference image.
-            text (dict[str, Any]): Labels dictionary.
-            txt_color (tuple[int, int, int]): Display color for text foreground.
-            bg_color (tuple[int, int, int]): Display color for text background.
+            text (Dict[str, Any]): Labels dictionary.
+            txt_color (Tuple[int, int, int]): Display color for text foreground.
+            bg_color (Tuple[int, int, int]): Display color for text background.
             margin (int): Gap between text and rectangle for better display.
         """
         horizontal_gap = int(im0.shape[1] * 0.02)
@@ -426,15 +423,14 @@ class SolutionAnnotator(Annotator):
             text_y_offset = rect_y2
 
     @staticmethod
-    @lru_cache(maxsize=256)
-    def estimate_pose_angle(a: list[float], b: list[float], c: list[float]) -> float:
+    def estimate_pose_angle(a: List[float], b: List[float], c: List[float]) -> float:
         """
         Calculate the angle between three points for workout monitoring.
 
         Args:
-            a (list[float]): The coordinates of the first point.
-            b (list[float]): The coordinates of the second point (vertex).
-            c (list[float]): The coordinates of the third point.
+            a (List[float]): The coordinates of the first point.
+            b (List[float]): The coordinates of the second point (vertex).
+            c (List[float]): The coordinates of the third point.
 
         Returns:
             (float): The angle in degrees between the three points.
@@ -445,8 +441,8 @@ class SolutionAnnotator(Annotator):
 
     def draw_specific_kpts(
         self,
-        keypoints: list[list[float]],
-        indices: list[int] | None = None,
+        keypoints: List[List[float]],
+        indices: Optional[List[int]] = None,
         radius: int = 2,
         conf_thresh: float = 0.25,
     ) -> np.ndarray:
@@ -454,8 +450,8 @@ class SolutionAnnotator(Annotator):
         Draw specific keypoints for gym steps counting.
 
         Args:
-            keypoints (list[list[float]]): Keypoints data to be plotted, each in format [x, y, confidence].
-            indices (list[int], optional): Keypoint indices to be plotted.
+            keypoints (List[List[float]]): Keypoints data to be plotted, each in format [x, y, confidence].
+            indices (List[int], optional): Keypoint indices to be plotted.
             radius (int): Keypoint radius.
             conf_thresh (float): Confidence threshold for keypoints.
 
@@ -482,18 +478,18 @@ class SolutionAnnotator(Annotator):
     def plot_workout_information(
         self,
         display_text: str,
-        position: tuple[int, int],
-        color: tuple[int, int, int] = (104, 31, 17),
-        txt_color: tuple[int, int, int] = (255, 255, 255),
+        position: Tuple[int, int],
+        color: Tuple[int, int, int] = (104, 31, 17),
+        txt_color: Tuple[int, int, int] = (255, 255, 255),
     ) -> int:
         """
         Draw workout text with a background on the image.
 
         Args:
             display_text (str): The text to be displayed.
-            position (tuple[int, int]): Coordinates (x, y) on the image where the text will be placed.
-            color (tuple[int, int, int]): Text background color.
-            txt_color (tuple[int, int, int]): Text foreground color.
+            position (Tuple[int, int]): Coordinates (x, y) on the image where the text will be placed.
+            color (Tuple[int, int, int]): Text background color.
+            txt_color (Tuple[int, int, int]): Text foreground color.
 
         Returns:
             (int): The height of the text.
@@ -518,9 +514,9 @@ class SolutionAnnotator(Annotator):
         angle_text: str,
         count_text: str,
         stage_text: str,
-        center_kpt: list[int],
-        color: tuple[int, int, int] = (104, 31, 17),
-        txt_color: tuple[int, int, int] = (255, 255, 255),
+        center_kpt: List[int],
+        color: Tuple[int, int, int] = (104, 31, 17),
+        txt_color: Tuple[int, int, int] = (255, 255, 255),
     ):
         """
         Plot the pose angle, count value, and step stage for workout monitoring.
@@ -529,9 +525,9 @@ class SolutionAnnotator(Annotator):
             angle_text (str): Angle value for workout monitoring.
             count_text (str): Counts value for workout monitoring.
             stage_text (str): Stage decision for workout monitoring.
-            center_kpt (list[int]): Centroid pose index for workout monitoring.
-            color (tuple[int, int, int]): Text background color.
-            txt_color (tuple[int, int, int]): Text foreground color.
+            center_kpt (List[int]): Centroid pose index for workout monitoring.
+            color (Tuple[int, int, int]): Text background color.
+            txt_color (Tuple[int, int, int]): Text foreground color.
         """
         # Format text
         angle_text, count_text, stage_text = f" {angle_text:.2f}", f"Steps : {count_text}", f" {stage_text}"
@@ -550,18 +546,18 @@ class SolutionAnnotator(Annotator):
     def plot_distance_and_line(
         self,
         pixels_distance: float,
-        centroids: list[tuple[int, int]],
-        line_color: tuple[int, int, int] = (104, 31, 17),
-        centroid_color: tuple[int, int, int] = (255, 0, 255),
+        centroids: List[Tuple[int, int]],
+        line_color: Tuple[int, int, int] = (104, 31, 17),
+        centroid_color: Tuple[int, int, int] = (255, 0, 255),
     ):
         """
         Plot the distance and line between two centroids on the frame.
 
         Args:
             pixels_distance (float): Pixels distance between two bbox centroids.
-            centroids (list[tuple[int, int]]): Bounding box centroids data.
-            line_color (tuple[int, int, int]): Distance line color.
-            centroid_color (tuple[int, int, int]): Bounding box centroid color.
+            centroids (List[Tuple[int, int]]): Bounding box centroids data.
+            line_color (Tuple[int, int, int]): Distance line color.
+            centroid_color (Tuple[int, int, int]): Bounding box centroid color.
         """
         # Get the text size
         text = f"Pixels Distance: {pixels_distance:.2f}"
@@ -591,8 +587,8 @@ class SolutionAnnotator(Annotator):
         self,
         im0: np.ndarray,
         text: str,
-        txt_color: tuple[int, int, int],
-        bg_color: tuple[int, int, int],
+        txt_color: Tuple[int, int, int],
+        bg_color: Tuple[int, int, int],
         x_center: float,
         y_center: float,
         margin: int,
@@ -603,8 +599,8 @@ class SolutionAnnotator(Annotator):
         Args:
             im0 (np.ndarray): Inference image.
             text (str): Object/class name.
-            txt_color (tuple[int, int, int]): Display color for text foreground.
-            bg_color (tuple[int, int, int]): Display color for text background.
+            txt_color (Tuple[int, int, int]): Display color for text foreground.
+            bg_color (Tuple[int, int, int]): Display color for text background.
             x_center (float): The x position center point for bounding box.
             y_center (float): The y position center point for bounding box.
             margin (int): The gap between text and rectangle for better display.
@@ -640,9 +636,9 @@ class SolutionAnnotator(Annotator):
         self,
         line_x: int = 0,
         line_y: int = 0,
-        label: str | None = None,
-        color: tuple[int, int, int] = (221, 0, 186),
-        txt_color: tuple[int, int, int] = (255, 255, 255),
+        label: Optional[str] = None,
+        color: Tuple[int, int, int] = (221, 0, 186),
+        txt_color: Tuple[int, int, int] = (255, 255, 255),
     ):
         """
         Draw a sweep annotation line and an optional label.
@@ -651,8 +647,8 @@ class SolutionAnnotator(Annotator):
             line_x (int): The x-coordinate of the sweep line.
             line_y (int): The y-coordinate limit of the sweep line.
             label (str, optional): Text label to be drawn in center of sweep line. If None, no label is drawn.
-            color (tuple[int, int, int]): RGB color for the line and label background.
-            txt_color (tuple[int, int, int]): RGB color for the label text.
+            color (Tuple[int, int, int]): RGB color for the line and label background.
+            txt_color (Tuple[int, int, int]): RGB color for the label text.
         """
         # Draw the sweep line
         cv2.line(self.im, (line_x, 0), (line_x, line_y), color, self.tf * 2)
@@ -679,77 +675,109 @@ class SolutionAnnotator(Annotator):
 
     def visioneye(
         self,
-        box: list[float],
-        center_point: tuple[int, int],
-        color: tuple[int, int, int] = (235, 219, 11),
-        pin_color: tuple[int, int, int] = (255, 0, 255),
+        box: List[float],
+        center_point: Tuple[int, int],
+        color: Tuple[int, int, int] = (235, 219, 11),
+        pin_color: Tuple[int, int, int] = (255, 0, 255),
     ):
         """
         Perform pinpoint human-vision eye mapping and plotting.
 
         Args:
-            box (list[float]): Bounding box coordinates in format [x1, y1, x2, y2].
-            center_point (tuple[int, int]): Center point for vision eye view.
-            color (tuple[int, int, int]): Object centroid and line color.
-            pin_color (tuple[int, int, int]): Visioneye point color.
+            box (List[float]): Bounding box coordinates in format [x1, y1, x2, y2].
+            center_point (Tuple[int, int]): Center point for vision eye view.
+            color (Tuple[int, int, int]): Object centroid and line color.
+            pin_color (Tuple[int, int, int]): Visioneye point color.
         """
         center_bbox = int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)
         cv2.circle(self.im, center_point, self.tf * 2, pin_color, -1)
         cv2.circle(self.im, center_bbox, self.tf * 2, color, -1)
         cv2.line(self.im, center_point, center_bbox, color, self.tf)
 
-    def adaptive_label(
+    def circle_label(
         self,
-        box: tuple[float, float, float, float],
+        box: Tuple[float, float, float, float],
         label: str = "",
-        color: tuple[int, int, int] = (128, 128, 128),
-        txt_color: tuple[int, int, int] = (255, 255, 255),
-        shape: str = "rect",
-        margin: int = 5,
+        color: Tuple[int, int, int] = (128, 128, 128),
+        txt_color: Tuple[int, int, int] = (255, 255, 255),
+        margin: int = 2,
     ):
         """
-        Draw a label with a background rectangle or circle centered within a given bounding box.
+        Draw a label with a background circle centered within a given bounding box.
 
         Args:
-            box (tuple[float, float, float, float]): The bounding box coordinates (x1, y1, x2, y2).
+            box (Tuple[float, float, float, float]): The bounding box coordinates (x1, y1, x2, y2).
             label (str): The text label to be displayed.
-            color (tuple[int, int, int]): The background color of the rectangle (B, G, R).
-            txt_color (tuple[int, int, int]): The color of the text (R, G, B).
-            shape (str): The shape of the label i.e "circle" or "rect"
-            margin (int): The margin between the text and the rectangle border.
+            color (Tuple[int, int, int]): The background color of the circle (B, G, R).
+            txt_color (Tuple[int, int, int]): The color of the text (R, G, B).
+            margin (int): The margin between the text and the circle border.
         """
-        if shape == "circle" and len(label) > 3:
+        if len(label) > 3:
             LOGGER.warning(f"Length of label is {len(label)}, only first 3 letters will be used for circle annotation.")
             label = label[:3]
 
-        x_center, y_center = int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)  # Calculate center of the bbox
-        text_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, self.sf - 0.15, self.tf)[0]  # Get size of the text
-        text_x, text_y = x_center - text_size[0] // 2, y_center + text_size[1] // 2  # Calculate top-left corner of text
+        # Calculate the center of the box
+        x_center, y_center = int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)
+        # Get the text size
+        text_size = cv2.getTextSize(str(label), cv2.FONT_HERSHEY_SIMPLEX, self.sf - 0.15, self.tf)[0]
+        # Calculate the required radius to fit the text with the margin
+        required_radius = int(((text_size[0] ** 2 + text_size[1] ** 2) ** 0.5) / 2) + margin
+        # Draw the circle with the required radius
+        cv2.circle(self.im, (x_center, y_center), required_radius, color, -1)
+        # Calculate the position for the text
+        text_x = x_center - text_size[0] // 2
+        text_y = y_center + text_size[1] // 2
+        # Draw the text
+        cv2.putText(
+            self.im,
+            str(label),
+            (text_x, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            self.sf - 0.15,
+            self.get_txt_color(color, txt_color),
+            self.tf,
+            lineType=cv2.LINE_AA,
+        )
 
-        if shape == "circle":
-            cv2.circle(
-                self.im,
-                (x_center, y_center),
-                int(((text_size[0] ** 2 + text_size[1] ** 2) ** 0.5) / 2) + margin,  # Calculate the radius
-                color,
-                -1,
-            )
-        else:
-            cv2.rectangle(
-                self.im,
-                (text_x - margin, text_y - text_size[1] - margin),  # Calculate coordinates of the rectangle
-                (text_x + text_size[0] + margin, text_y + margin),  # Calculate coordinates of the rectangle
-                color,
-                -1,
-            )
+    def text_label(
+        self,
+        box: Tuple[float, float, float, float],
+        label: str = "",
+        color: Tuple[int, int, int] = (128, 128, 128),
+        txt_color: Tuple[int, int, int] = (255, 255, 255),
+        margin: int = 5,
+    ):
+        """
+        Draw a label with a background rectangle centered within a given bounding box.
 
+        Args:
+            box (Tuple[float, float, float, float]): The bounding box coordinates (x1, y1, x2, y2).
+            label (str): The text label to be displayed.
+            color (Tuple[int, int, int]): The background color of the rectangle (B, G, R).
+            txt_color (Tuple[int, int, int]): The color of the text (R, G, B).
+            margin (int): The margin between the text and the rectangle border.
+        """
+        # Calculate the center of the bounding box
+        x_center, y_center = int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)
+        # Get the size of the text
+        text_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, self.sf - 0.1, self.tf)[0]
+        # Calculate the top-left corner of the text (to center it)
+        text_x = x_center - text_size[0] // 2
+        text_y = y_center + text_size[1] // 2
+        # Calculate the coordinates of the background rectangle
+        rect_x1 = text_x - margin
+        rect_y1 = text_y - text_size[1] - margin
+        rect_x2 = text_x + text_size[0] + margin
+        rect_y2 = text_y + margin
+        # Draw the background rectangle
+        cv2.rectangle(self.im, (rect_x1, rect_y1), (rect_x2, rect_y2), color, -1)
         # Draw the text on top of the rectangle
         cv2.putText(
             self.im,
             label,
-            (text_x, text_y),  # Calculate top-left corner of the text
+            (text_x, text_y),
             cv2.FONT_HERSHEY_SIMPLEX,
-            self.sf - 0.15,
+            self.sf - 0.1,
             self.get_txt_color(color, txt_color),
             self.tf,
             lineType=cv2.LINE_AA,
@@ -768,7 +796,7 @@ class SolutionResults:
         plot_im (np.ndarray): Processed image with counts, blurred, or other effects from solutions.
         in_count (int): The total number of "in" counts in a video stream.
         out_count (int): The total number of "out" counts in a video stream.
-        classwise_count (dict[str, int]): A dictionary containing counts of objects categorized by class.
+        classwise_count (Dict[str, int]): A dictionary containing counts of objects categorized by class.
         queue_count (int): The count of objects in a queue or waiting area.
         workout_count (int): The count of workout repetitions.
         workout_angle (float): The angle calculated during a workout exercise.
@@ -778,10 +806,10 @@ class SolutionResults:
         filled_slots (int): The number of filled slots in a monitored area.
         email_sent (bool): A flag indicating whether an email notification was sent.
         total_tracks (int): The total number of tracked objects.
-        region_counts (dict[str, int]): The count of objects within a specific region.
-        speed_dict (dict[str, float]): A dictionary containing speed information for tracked objects.
+        region_counts (Dict): The count of objects within a specific region.
+        speed_dict (Dict[str, float]): A dictionary containing speed information for tracked objects.
         total_crop_objects (int): Total number of cropped objects using ObjectCropper class.
-        speed (dict[str, float]): Performance timing information for tracking and solution processing.
+        speed (Dict): Performance timing information for tracking and solution processing.
     """
 
     def __init__(self, **kwargs):

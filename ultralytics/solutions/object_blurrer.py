@@ -1,7 +1,5 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from typing import Any
-
 import cv2
 
 from ultralytics.solutions.solutions import BaseSolution, SolutionAnnotator, SolutionResults
@@ -33,7 +31,7 @@ class ObjectBlurrer(BaseSolution):
         >>> print(f"Total blurred objects: {processed_results.total_tracks}")
     """
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs):
         """
         Initialize the ObjectBlurrer class for applying a blur effect to objects detected in video streams or images.
 
@@ -48,7 +46,7 @@ class ObjectBlurrer(BaseSolution):
             blur_ratio = 0.5
         self.blur_ratio = int(blur_ratio * 100)
 
-    def process(self, im0) -> SolutionResults:
+    def process(self, im0):
         """
         Apply a blurring effect to detected objects in the input image.
 
@@ -56,11 +54,11 @@ class ObjectBlurrer(BaseSolution):
         and annotates the image with bounding boxes.
 
         Args:
-            im0 (np.ndarray): The input image containing detected objects.
+            im0 (numpy.ndarray): The input image containing detected objects.
 
         Returns:
             (SolutionResults): Object containing the processed image and number of tracked objects.
-                - plot_im (np.ndarray): The annotated output image with blurred objects.
+                - plot_im (numpy.ndarray): The annotated output image with blurred objects.
                 - total_tracks (int): The total number of tracked objects in the frame.
 
         Examples:

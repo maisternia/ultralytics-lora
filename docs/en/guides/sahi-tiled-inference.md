@@ -114,7 +114,6 @@ Perform standard inference using an image path or a numpy image.
 
 ```python
 from sahi.predict import get_prediction
-from sahi.utils.cv import read_image
 
 # With an image path
 result = get_prediction("demo_data/small-vehicles1.jpeg", detection_model)
@@ -128,8 +127,6 @@ result_with_np_image = get_prediction(read_image("demo_data/small-vehicles1.jpeg
 Export and visualize the predicted bounding boxes and masks:
 
 ```python
-from IPython.display import Image
-
 result.export_visuals(export_dir="demo_data/")
 Image("demo_data/prediction_visual.png")
 ```

@@ -1,10 +1,9 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 from collections import abc
 from itertools import repeat
 from numbers import Number
+from typing import List
 
 import numpy as np
 
@@ -60,7 +59,7 @@ class Bboxes:
         This class does not handle normalization or denormalization of bounding boxes.
     """
 
-    def __init__(self, bboxes: np.ndarray, format: str = "xyxy") -> None:
+    def __init__(self, bboxes, format="xyxy") -> None:
         """
         Initialize the Bboxes class with bounding box data in a specified format.
 
@@ -75,7 +74,7 @@ class Bboxes:
         self.bboxes = bboxes
         self.format = format
 
-    def convert(self, format: str) -> None:
+    def convert(self, format):
         """
         Convert bounding box format from one type to another.
 
@@ -94,7 +93,7 @@ class Bboxes:
         self.bboxes = func(self.bboxes)
         self.format = format
 
-    def areas(self) -> np.ndarray:
+    def areas(self):
         """Calculate the area of bounding boxes."""
         return (
             (self.bboxes[:, 2] - self.bboxes[:, 0]) * (self.bboxes[:, 3] - self.bboxes[:, 1])  # format xyxy
@@ -102,7 +101,7 @@ class Bboxes:
             else self.bboxes[:, 3] * self.bboxes[:, 2]  # format xywh or ltwh
         )
 
-    def mul(self, scale: int | tuple | list) -> None:
+    def mul(self, scale):
         """
         Multiply bounding box coordinates by scale factor(s).
 
@@ -119,7 +118,7 @@ class Bboxes:
         self.bboxes[:, 2] *= scale[2]
         self.bboxes[:, 3] *= scale[3]
 
-    def add(self, offset: int | tuple | list) -> None:
+    def add(self, offset):
         """
         Add offset to bounding box coordinates.
 
@@ -136,17 +135,17 @@ class Bboxes:
         self.bboxes[:, 2] += offset[2]
         self.bboxes[:, 3] += offset[3]
 
-    def __len__(self) -> int:
+    def __len__(self):
         """Return the number of bounding boxes."""
         return len(self.bboxes)
 
     @classmethod
-    def concatenate(cls, boxes_list: list[Bboxes], axis: int = 0) -> Bboxes:
+    def concatenate(cls, boxes_list: List["Bboxes"], axis=0) -> "Bboxes":
         """
         Concatenate a list of Bboxes objects into a single Bboxes object.
 
         Args:
-            boxes_list (list[Bboxes]): A list of Bboxes objects to concatenate.
+            boxes_list (List[Bboxes]): A list of Bboxes objects to concatenate.
             axis (int, optional): The axis along which to concatenate the bounding boxes.
 
         Returns:
@@ -164,7 +163,7 @@ class Bboxes:
             return boxes_list[0]
         return cls(np.concatenate([b.bboxes for b in boxes_list], axis=axis))
 
-    def __getitem__(self, index: int | np.ndarray | slice) -> Bboxes:
+    def __getitem__(self, index) -> "Bboxes":
         """
         Retrieve a specific bounding box or a set of bounding boxes using indexing.
 
@@ -221,20 +220,13 @@ class Instances:
         ... )
     """
 
-    def __init__(
-        self,
-        bboxes: np.ndarray,
-        segments: np.ndarray = None,
-        keypoints: np.ndarray = None,
-        bbox_format: str = "xywh",
-        normalized: bool = True,
-    ) -> None:
+    def __init__(self, bboxes, segments=None, keypoints=None, bbox_format="xywh", normalized=True) -> None:
         """
         Initialize the Instances object with bounding boxes, segments, and keypoints.
 
         Args:
             bboxes (np.ndarray): Bounding boxes with shape (N, 4).
-            segments (np.ndarray, optional): Segmentation masks.
+            segments (List | np.ndarray, optional): Segmentation masks.
             keypoints (np.ndarray, optional): Keypoints with shape (N, 17, 3) in format (x, y, visible).
             bbox_format (str): Format of bboxes.
             normalized (bool): Whether the coordinates are normalized.
@@ -244,7 +236,7 @@ class Instances:
         self.normalized = normalized
         self.segments = segments
 
-    def convert_bbox(self, format: str) -> None:
+    def convert_bbox(self, format):
         """
         Convert bounding box format.
 
@@ -254,11 +246,11 @@ class Instances:
         self._bboxes.convert(format=format)
 
     @property
-    def bbox_areas(self) -> np.ndarray:
+    def bbox_areas(self):
         """Calculate the area of bounding boxes."""
         return self._bboxes.areas()
 
-    def scale(self, scale_w: float, scale_h: float, bbox_only: bool = False):
+    def scale(self, scale_w, scale_h, bbox_only=False):
         """
         Scale coordinates by given factors.
 
@@ -276,7 +268,7 @@ class Instances:
             self.keypoints[..., 0] *= scale_w
             self.keypoints[..., 1] *= scale_h
 
-    def denormalize(self, w: int, h: int) -> None:
+    def denormalize(self, w, h):
         """
         Convert normalized coordinates to absolute coordinates.
 
@@ -294,7 +286,7 @@ class Instances:
             self.keypoints[..., 1] *= h
         self.normalized = False
 
-    def normalize(self, w: int, h: int) -> None:
+    def normalize(self, w, h):
         """
         Convert absolute coordinates to normalized coordinates.
 
@@ -312,7 +304,7 @@ class Instances:
             self.keypoints[..., 1] /= h
         self.normalized = True
 
-    def add_padding(self, padw: int, padh: int) -> None:
+    def add_padding(self, padw, padh):
         """
         Add padding to coordinates.
 
@@ -328,7 +320,7 @@ class Instances:
             self.keypoints[..., 0] += padw
             self.keypoints[..., 1] += padh
 
-    def __getitem__(self, index: int | np.ndarray | slice) -> Instances:
+    def __getitem__(self, index) -> "Instances":
         """
         Retrieve a specific instance or a set of instances using indexing.
 
@@ -354,7 +346,7 @@ class Instances:
             normalized=self.normalized,
         )
 
-    def flipud(self, h: int) -> None:
+    def flipud(self, h):
         """
         Flip coordinates vertically.
 
@@ -372,7 +364,7 @@ class Instances:
         if self.keypoints is not None:
             self.keypoints[..., 1] = h - self.keypoints[..., 1]
 
-    def fliplr(self, w: int) -> None:
+    def fliplr(self, w):
         """
         Flip coordinates horizontally.
 
@@ -390,7 +382,7 @@ class Instances:
         if self.keypoints is not None:
             self.keypoints[..., 0] = w - self.keypoints[..., 0]
 
-    def clip(self, w: int, h: int) -> None:
+    def clip(self, w, h):
         """
         Clip coordinates to stay within image boundaries.
 
@@ -414,10 +406,8 @@ class Instances:
                 | (self.keypoints[..., 1] < 0)
                 | (self.keypoints[..., 1] > h)
             ] = 0.0
-            self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
-            self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
 
-    def remove_zero_area_boxes(self) -> np.ndarray:
+    def remove_zero_area_boxes(self):
         """
         Remove zero-area boxes, i.e. after clipping some boxes may have zero width or height.
 
@@ -433,7 +423,7 @@ class Instances:
                 self.keypoints = self.keypoints[good]
         return good
 
-    def update(self, bboxes: np.ndarray, segments: np.ndarray = None, keypoints: np.ndarray = None):
+    def update(self, bboxes, segments=None, keypoints=None):
         """
         Update instance variables.
 
@@ -448,17 +438,17 @@ class Instances:
         if keypoints is not None:
             self.keypoints = keypoints
 
-    def __len__(self) -> int:
+    def __len__(self):
         """Return the number of instances."""
         return len(self.bboxes)
 
     @classmethod
-    def concatenate(cls, instances_list: list[Instances], axis=0) -> Instances:
+    def concatenate(cls, instances_list: List["Instances"], axis=0) -> "Instances":
         """
         Concatenate a list of Instances objects into a single Instances object.
 
         Args:
-            instances_list (list[Instances]): A list of Instances objects to concatenate.
+            instances_list (List[Instances]): A list of Instances objects to concatenate.
             axis (int, optional): The axis along which the arrays will be concatenated.
 
         Returns:
@@ -500,6 +490,6 @@ class Instances:
         return cls(cat_boxes, cat_segments, cat_keypoints, bbox_format, normalized)
 
     @property
-    def bboxes(self) -> np.ndarray:
+    def bboxes(self):
         """Return bounding boxes."""
         return self._bboxes.bboxes

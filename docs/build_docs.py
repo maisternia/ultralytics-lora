@@ -20,8 +20,6 @@ Note:
     - Requires Python and MkDocs to be installed and configured.
 """
 
-from __future__ import annotations
-
 import os
 import re
 import shutil
@@ -29,9 +27,7 @@ import subprocess
 from pathlib import Path
 
 from bs4 import BeautifulSoup
-
-from ultralytics.utils import LINUX, LOGGER, MACOS
-from ultralytics.utils.tqdm import TQDM
+from tqdm import tqdm
 
 os.environ["JUPYTER_PLATFORM_DIRS"] = "1"  # fix DeprecationWarning: Jupyter is migrating to use standard platformdirs
 DOCS = Path(__file__).parent.resolve()
@@ -41,7 +37,7 @@ LINK_PATTERN = re.compile(r"(https?://[^\s()<>]*[^\s()<>.,:;!?\'\"])")
 
 def prepare_docs_markdown(clone_repos: bool = True):
     """Build docs using mkdocs."""
-    LOGGER.info("Removing existing build artifacts")
+    print("Removing existing build artifacts")
     shutil.rmtree(SITE, ignore_errors=True)
     shutil.rmtree(DOCS / "repos", ignore_errors=True)
 
@@ -49,27 +45,23 @@ def prepare_docs_markdown(clone_repos: bool = True):
         # Get hub-sdk repo
         repo = "https://github.com/ultralytics/hub-sdk"
         local_dir = DOCS / "repos" / Path(repo).name
-        subprocess.run(
-            ["git", "clone", repo, str(local_dir), "--depth", "1", "--single-branch", "--branch", "main"], check=True
-        )
+        os.system(f"git clone {repo} {local_dir} --depth 1 --single-branch --branch main")
         shutil.rmtree(DOCS / "en/hub/sdk", ignore_errors=True)  # delete if exists
         shutil.copytree(local_dir / "docs", DOCS / "en/hub/sdk")  # for docs
         shutil.rmtree(DOCS.parent / "hub_sdk", ignore_errors=True)  # delete if exists
         shutil.copytree(local_dir / "hub_sdk", DOCS.parent / "hub_sdk")  # for mkdocstrings
-        LOGGER.info(f"Cloned/Updated {repo} in {local_dir}")
+        print(f"Cloned/Updated {repo} in {local_dir}")
 
         # Get docs repo
         repo = "https://github.com/ultralytics/docs"
         local_dir = DOCS / "repos" / Path(repo).name
-        subprocess.run(
-            ["git", "clone", repo, str(local_dir), "--depth", "1", "--single-branch", "--branch", "main"], check=True
-        )
+        os.system(f"git clone {repo} {local_dir} --depth 1 --single-branch --branch main")
         shutil.rmtree(DOCS / "en/compare", ignore_errors=True)  # delete if exists
         shutil.copytree(local_dir / "docs/en/compare", DOCS / "en/compare")  # for docs
-        LOGGER.info(f"Cloned/Updated {repo} in {local_dir}")
+        print(f"Cloned/Updated {repo} in {local_dir}")
 
     # Add frontmatter
-    for file in TQDM((DOCS / "en").rglob("*.md"), desc="Adding frontmatter"):
+    for file in tqdm((DOCS / "en").rglob("*.md"), desc="Adding frontmatter"):
         update_markdown_files(file)
 
 
@@ -89,7 +81,7 @@ def update_page_title(file_path: Path, new_title: str):
 def update_html_head(script: str = ""):
     """Update the HTML head section of each file."""
     html_files = Path(SITE).rglob("*.html")
-    for html_file in TQDM(html_files, desc="Processing HTML files"):
+    for html_file in tqdm(html_files, desc="Processing HTML files"):
         with html_file.open("r", encoding="utf-8") as file:
             html_content = file.read()
 
@@ -109,7 +101,7 @@ def update_subdir_edit_links(subdir: str = "", docs_url: str = ""):
     if str(subdir[0]) == "/":
         subdir = str(subdir[0])[1:]
     html_files = (SITE / subdir).rglob("*.html")
-    for html_file in TQDM(html_files, desc="Processing subdir files", mininterval=1.0):
+    for html_file in tqdm(html_files, desc="Processing subdir files", mininterval=1.0):
         with html_file.open("r", encoding="utf-8") as file:
             soup = BeautifulSoup(file, "html.parser")
 
@@ -174,7 +166,7 @@ def update_docs_html():
 
     # Convert plaintext links to HTML hyperlinks
     files_modified = 0
-    for html_file in TQDM(SITE.rglob("*.html"), desc="Updating bs4 soup", mininterval=1.0):
+    for html_file in tqdm(SITE.rglob("*.html"), desc="Updating bs4 soup", mininterval=1.0):
         with open(html_file, encoding="utf-8") as file:
             content = file.read()
         updated_content = update_docs_soup(content, html_file=html_file)
@@ -182,7 +174,7 @@ def update_docs_html():
             with open(html_file, "w", encoding="utf-8") as file:
                 file.write(updated_content)
             files_modified += 1
-    LOGGER.info(f"Modified bs4 soup in {files_modified} files.")
+    print(f"Modified bs4 soup in {files_modified} files.")
 
     # Update HTML file head section
     script = ""
@@ -192,11 +184,11 @@ def update_docs_html():
     # Delete the /macros directory from the built site
     macros_dir = SITE / "macros"
     if macros_dir.exists():
-        LOGGER.info(f"Removing /macros directory from site: {macros_dir}")
+        print(f"Removing /macros directory from site: {macros_dir}")
         shutil.rmtree(macros_dir)
 
 
-def update_docs_soup(content: str, html_file: Path | None = None, max_title_length: int = 70) -> str:
+def update_docs_soup(content: str, html_file: Path = None, max_title_length: int = 70) -> str:
     """Convert plaintext links to HTML hyperlinks, truncate long meta titles, and remove code line hrefs."""
     soup = BeautifulSoup(content, "html.parser")
     modified = False
@@ -258,7 +250,7 @@ def remove_macros():
     # Write the cleaned content back to the file
     sitemap.write_text("".join(new_lines), encoding="utf-8")
 
-    LOGGER.info(f"Removed {len(macros_indices)} URLs containing '/macros/' from {sitemap}")
+    print(f"Removed {len(macros_indices)} URLs containing '/macros/' from {sitemap}")
 
 
 def remove_comments_and_empty_lines(content: str, file_type: str) -> str:
@@ -331,7 +323,7 @@ def minify_files(html: bool = True, css: bool = True, js: bool = True):
         if js:
             import jsmin
     except ImportError as e:
-        LOGGER.info(f"Missing required package: {e}")
+        print(f"Missing required package: {str(e)}")
         return
 
     stats = {}
@@ -342,7 +334,7 @@ def minify_files(html: bool = True, css: bool = True, js: bool = True):
     }.items():
         stats[ext] = {"original": 0, "minified": 0}
         directory = ""  # "stylesheets" if ext == css else "javascript" if ext == "js" else ""
-        for f in TQDM((SITE / directory).rglob(f"*.{ext}"), desc=f"Minifying {ext.upper()}", mininterval=1.0):
+        for f in tqdm((SITE / directory).rglob(f"*.{ext}"), desc=f"Minifying {ext.upper()}", mininterval=1.0):
             content = f.read_text(encoding="utf-8")
             minified = minifier(content) if minifier else remove_comments_and_empty_lines(content, ext)
             stats[ext]["original"] += len(content)
@@ -352,7 +344,7 @@ def minify_files(html: bool = True, css: bool = True, js: bool = True):
     for ext, data in stats.items():
         if data["original"]:
             r = data["original"] - data["minified"]  # reduction
-            LOGGER.info(f"Total {ext.upper()} reduction: {(r / data['original']) * 100:.2f}% ({r / 1024:.2f} KB saved)")
+            print(f"Total {ext.upper()} reduction: {(r / data['original']) * 100:.2f}% ({r / 1024:.2f} KB saved)")
 
 
 def main():
@@ -360,10 +352,10 @@ def main():
     prepare_docs_markdown()
 
     # Build the main documentation
-    LOGGER.info(f"Building docs from {DOCS}")
-    subprocess.run(["mkdocs", "build", "-f", str(DOCS.parent / "mkdocs.yml"), "--strict"], check=True)
+    print(f"Building docs from {DOCS}")
+    subprocess.run(f"mkdocs build -f {DOCS.parent}/mkdocs.yml --strict", check=True, shell=True)
     remove_macros()
-    LOGGER.info(f"Site built at {SITE}")
+    print(f"Site built at {SITE}")
 
     # Update docs HTML pages
     update_docs_html()
@@ -375,20 +367,12 @@ def main():
     shutil.rmtree(DOCS.parent / "hub_sdk", ignore_errors=True)
     shutil.rmtree(DOCS / "repos", ignore_errors=True)
 
-    # Print results and auto-serve on macOS
+    # Print results
     size = sum(f.stat().st_size for f in SITE.rglob("*") if f.is_file()) >> 20
-    LOGGER.info(f"Docs built correctly ✅ ({size:.1f} MB)")
-
-    if (MACOS or LINUX) and not os.getenv("GITHUB_ACTIONS"):
-        import webbrowser
-
-        webbrowser.open("http://localhost:8000")
-        try:
-            subprocess.run(["python", "-m", "http.server", "--directory", str(SITE), "8000"], check=True)
-        except KeyboardInterrupt:
-            LOGGER.info("\nServer stopped.")
-    else:
-        LOGGER.info('Serve site at http://localhost:8000 with "python -m http.server --directory site"')
+    print(
+        f"Docs built correctly ✅ ({size:.1f} MB)\n"
+        f'Serve site at http://localhost:8000 with "python -m http.server --directory site"'
+    )
 
 
 if __name__ == "__main__":

@@ -1,16 +1,14 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 from ultralytics.cfg import TASK2DATA, TASK2METRIC, get_cfg, get_save_dir
 from ultralytics.utils import DEFAULT_CFG, DEFAULT_CFG_DICT, LOGGER, NUM_THREADS, checks, colorstr
 
 
 def run_ray_tune(
     model,
-    space: dict | None = None,
+    space: dict = None,
     grace_period: int = 10,
-    gpu_per_trial: int | None = None,
+    gpu_per_trial: int = None,
     max_samples: int = 10,
     **train_args,
 ):
@@ -131,7 +129,7 @@ def run_ray_tune(
             {**train_args, **{"exist_ok": train_args.pop("resume", False)}},  # resume w/ same tune_dir
         ),
         name=train_args.pop("name", "tune"),  # runs/{task}/{tune_dir}
-    )  # must be absolute dir
+    ).resolve()  # must be absolute dir
     tune_dir.mkdir(parents=True, exist_ok=True)
     if tune.Tuner.can_restore(tune_dir):
         LOGGER.info(f"{colorstr('Tuner: ')} Resuming tuning run {tune_dir}...")

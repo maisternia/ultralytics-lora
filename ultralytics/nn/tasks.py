@@ -69,7 +69,7 @@ from ultralytics.nn.modules import (
     YOLOESegment,
     v10Detect,
 )
-from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
+from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
 from ultralytics.utils.loss import (
     E2EDetectLoss,
@@ -80,7 +80,6 @@ from ultralytics.utils.loss import (
     v8SegmentationLoss,
 )
 from ultralytics.utils.ops import make_divisible
-from ultralytics.utils.patches import torch_load
 from ultralytics.utils.plotting import feature_visualization
 from ultralytics.utils.torch_utils import (
     fuse_conv_and_bn,
@@ -329,13 +328,12 @@ class BaseModel(torch.nn.Module):
 
         Args:
             batch (dict): Batch to compute loss on.
-            preds (torch.Tensor | list[torch.Tensor], optional): Predictions.
+            preds (torch.Tensor | List[torch.Tensor], optional): Predictions.
         """
         if getattr(self, "criterion", None) is None:
             self.criterion = self.init_criterion()
 
-        if preds is None:
-            preds = self.forward(batch["img"])
+        preds = self.forward(batch["img"]) if preds is None else preds
         return self.criterion(preds, batch)
 
     def init_criterion(self):
@@ -481,10 +479,10 @@ class DetectionModel(BaseModel):
         Clip YOLO augmented inference tails.
 
         Args:
-            y (list[torch.Tensor]): List of detection tensors.
+            y (List[torch.Tensor]): List of detection tensors.
 
         Returns:
-            (list[torch.Tensor]): Clipped detection tensors.
+            (List[torch.Tensor]): Clipped detection tensors.
         """
         nl = self.model[-1].nl  # number of detection layers (P3-P5)
         g = sum(4**x for x in range(nl))  # grid points
@@ -743,22 +741,6 @@ class RTDETRDetectionModel(DetectionModel):
         """
         super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
 
-    def _apply(self, fn):
-        """
-        Apply a function to all tensors in the model that are not parameters or registered buffers.
-
-        Args:
-            fn (function): The function to apply to the model.
-
-        Returns:
-            (RTDETRDetectionModel): An updated BaseModel object.
-        """
-        self = super()._apply(fn)
-        m = self.model[-1]
-        m.anchors = fn(m.anchors)
-        m.valid_mask = fn(m.valid_mask)
-        return self
-
     def init_criterion(self):
         """Initialize the loss criterion for the RTDETRDetectionModel."""
         from ultralytics.models.utils.loss import RTDETRDetectionLoss
@@ -782,7 +764,7 @@ class RTDETRDetectionModel(DetectionModel):
 
         img = batch["img"]
         # NOTE: preprocess gt_bbox and gt_labels to list.
-        bs = img.shape[0]
+        bs = len(img)
         batch_idx = batch["batch_idx"]
         gt_groups = [(batch_idx == i).sum().item() for i in range(bs)]
         targets = {
@@ -792,8 +774,7 @@ class RTDETRDetectionModel(DetectionModel):
             "gt_groups": gt_groups,
         }
 
-        if preds is None:
-            preds = self.predict(img, batch=targets)
+        preds = self.predict(img, batch=targets) if preds is None else preds
         dec_bboxes, dec_scores, enc_bboxes, enc_scores, dn_meta = preds if self.training else preds[1]
         if dn_meta is None:
             dn_bboxes, dn_scores = None, None
@@ -892,19 +873,20 @@ class WorldModel(DetectionModel):
         Set classes in advance so that model could do offline-inference without clip model.
 
         Args:
-            text (list[str]): List of class names.
+            text (List[str]): List of class names.
             batch (int): Batch size for processing text tokens.
             cache_clip_model (bool): Whether to cache the CLIP model.
         """
         self.txt_feats = self.get_text_pe(text, batch=batch, cache_clip_model=cache_clip_model)
         self.model[-1].nc = len(text)
 
+    @smart_inference_mode()
     def get_text_pe(self, text, batch=80, cache_clip_model=True):
         """
         Set classes in advance so that model could do offline-inference without clip model.
 
         Args:
-            text (list[str]): List of class names.
+            text (List[str]): List of class names.
             batch (int): Batch size for processing text tokens.
             cache_clip_model (bool): Whether to cache the CLIP model.
 
@@ -939,7 +921,7 @@ class WorldModel(DetectionModel):
             (torch.Tensor): Model's output tensor.
         """
         txt_feats = (self.txt_feats if txt_feats is None else txt_feats).to(device=x.device, dtype=x.dtype)
-        if txt_feats.shape[0] != x.shape[0] or self.model[-1].export:
+        if len(txt_feats) != len(x) or self.model[-1].export:
             txt_feats = txt_feats.expand(x.shape[0], -1, -1)
         ori_txt_feats = txt_feats.clone()
         y, dt, embeddings = [], [], []  # outputs
@@ -974,7 +956,7 @@ class WorldModel(DetectionModel):
 
         Args:
             batch (dict): Batch to compute loss on.
-            preds (torch.Tensor | list[torch.Tensor], optional): Predictions.
+            preds (torch.Tensor | List[torch.Tensor], optional): Predictions.
         """
         if not hasattr(self, "criterion"):
             self.criterion = self.init_criterion()
@@ -1030,7 +1012,7 @@ class YOLOEModel(DetectionModel):
         Set classes in advance so that model could do offline-inference without clip model.
 
         Args:
-            text (list[str]): List of class names.
+            text (List[str]): List of class names.
             batch (int): Batch size for processing text tokens.
             cache_clip_model (bool): Whether to cache the CLIP model.
             without_reprta (bool): Whether to return text embeddings cooperated with reprta module.
@@ -1053,6 +1035,7 @@ class YOLOEModel(DetectionModel):
         if without_reprta:
             return txt_feats
 
+        assert not self.training
         head = self.model[-1]
         assert isinstance(head, YOLOEDetect)
         return head.get_tpe(txt_feats)  # run auxiliary text head
@@ -1077,7 +1060,7 @@ class YOLOEModel(DetectionModel):
 
         Args:
             vocab (nn.ModuleList): List of vocabulary items.
-            names (list[str]): List of class names.
+            names (List[str]): List of class names.
         """
         assert not self.training
         head = self.model[-1]
@@ -1131,7 +1114,7 @@ class YOLOEModel(DetectionModel):
         Set classes in advance so that model could do offline-inference without clip model.
 
         Args:
-            names (list[str]): List of class names.
+            names (List[str]): List of class names.
             embeddings (torch.Tensor): Embeddings tensor.
         """
         assert not hasattr(self.model[-1], "lrpc"), (
@@ -1220,7 +1203,7 @@ class YOLOEModel(DetectionModel):
 
         Args:
             batch (dict): Batch to compute loss on.
-            preds (torch.Tensor | list[torch.Tensor], optional): Predictions.
+            preds (torch.Tensor | List[torch.Tensor], optional): Predictions.
         """
         if not hasattr(self, "criterion"):
             from ultralytics.utils.loss import TVPDetectLoss
@@ -1268,7 +1251,7 @@ class YOLOESegModel(YOLOEModel, SegmentationModel):
 
         Args:
             batch (dict): Batch to compute loss on.
-            preds (torch.Tensor | list[torch.Tensor], optional): Predictions.
+            preds (torch.Tensor | List[torch.Tensor], optional): Predictions.
         """
         if not hasattr(self, "criterion"):
             from ultralytics.utils.loss import TVPSegmentLoss
@@ -1459,9 +1442,9 @@ def torch_safe_load(weight, safe_only=False):
                 safe_pickle.Unpickler = SafeUnpickler
                 safe_pickle.load = lambda file_obj: SafeUnpickler(file_obj).load()
                 with open(file, "rb") as f:
-                    ckpt = torch_load(f, pickle_module=safe_pickle)
+                    ckpt = torch.load(f, pickle_module=safe_pickle)
             else:
-                ckpt = torch_load(file, map_location="cpu")
+                ckpt = torch.load(file, map_location="cpu")
 
     except ModuleNotFoundError as e:  # e.name is missing module name
         if e.name == "models":
@@ -1474,12 +1457,6 @@ def torch_safe_load(weight, safe_only=False):
                     f"run a command with an official Ultralytics model, i.e. 'yolo predict model=yolo11n.pt'"
                 )
             ) from e
-        elif e.name == "numpy._core":
-            raise ModuleNotFoundError(
-                emojis(
-                    f"ERROR ❌️ {weight} requires numpy>=1.26.1, however numpy=={__import__('numpy').__version__} is installed."
-                )
-            ) from e
         LOGGER.warning(
             f"{weight} appears to require '{e.name}', which is not in Ultralytics requirements."
             f"\nAutoInstall will run now for '{e.name}' but this feature will be removed in the future."
@@ -1487,7 +1464,7 @@ def torch_safe_load(weight, safe_only=False):
             f"run a command with an official Ultralytics model, i.e. 'yolo predict model=yolo11n.pt'"
         )
         check_requirements(e.name)  # install missing module
-        ckpt = torch_load(file, map_location="cpu")
+        ckpt = torch.load(file, map_location="cpu")
 
     if not isinstance(ckpt, dict):
         # File is likely a YOLO instance saved with i.e. torch.save(model, "saved_model.pt")
@@ -1500,12 +1477,61 @@ def torch_safe_load(weight, safe_only=False):
     return ckpt, file
 
 
-def load_checkpoint(weight, device=None, inplace=True, fuse=False):
+def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
+    """
+    Load an ensemble of models weights=[a,b,c] or a single model weights=[a] or weights=a.
+
+    Args:
+        weights (str | List[str]): Model weights path(s).
+        device (torch.device, optional): Device to load model to.
+        inplace (bool): Whether to do inplace operations.
+        fuse (bool): Whether to fuse model.
+
+    Returns:
+        (torch.nn.Module): Loaded model.
+    """
+    ensemble = Ensemble()
+    for w in weights if isinstance(weights, list) else [weights]:
+        ckpt, w = torch_safe_load(w)  # load ckpt
+        args = {**DEFAULT_CFG_DICT, **ckpt["train_args"]} if "train_args" in ckpt else None  # combined args
+        model = (ckpt.get("ema") or ckpt["model"]).to(device).float()  # FP32 model
+
+        # Model compatibility updates
+        model.args = args  # attach args to model
+        model.pt_path = w  # attach *.pt file path to model
+        model.task = guess_model_task(model)
+        if not hasattr(model, "stride"):
+            model.stride = torch.tensor([32.0])
+
+        # Append
+        ensemble.append(model.fuse().eval() if fuse and hasattr(model, "fuse") else model.eval())  # model in eval mode
+
+    # Module updates
+    for m in ensemble.modules():
+        if hasattr(m, "inplace"):
+            m.inplace = inplace
+        elif isinstance(m, torch.nn.Upsample) and not hasattr(m, "recompute_scale_factor"):
+            m.recompute_scale_factor = None  # torch 1.11.0 compatibility
+
+    # Return model
+    if len(ensemble) == 1:
+        return ensemble[-1]
+
+    # Return ensemble
+    LOGGER.info(f"Ensemble created with {weights}\n")
+    for k in "names", "nc", "yaml":
+        setattr(ensemble, k, getattr(ensemble[0], k))
+    ensemble.stride = ensemble[int(torch.argmax(torch.tensor([m.stride.max() for m in ensemble])))].stride
+    assert all(ensemble[0].nc == m.nc for m in ensemble), f"Models differ in class counts {[m.nc for m in ensemble]}"
+    return ensemble
+
+
+def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     """
     Load a single model weights.
 
     Args:
-        weight (str | Path): Model weight path.
+        weight (str): Model weight path.
         device (torch.device, optional): Device to load model to.
         inplace (bool): Whether to do inplace operations.
         fuse (bool): Whether to fuse model.
@@ -1516,16 +1542,16 @@ def load_checkpoint(weight, device=None, inplace=True, fuse=False):
     """
     ckpt, weight = torch_safe_load(weight)  # load ckpt
     args = {**DEFAULT_CFG_DICT, **(ckpt.get("train_args", {}))}  # combine model and default args, preferring model args
-    model = (ckpt.get("ema") or ckpt["model"]).float()  # FP32 model
+    model = (ckpt.get("ema") or ckpt["model"]).to(device).float()  # FP32 model
 
     # Model compatibility updates
-    model.args = args  # attach args to model
+    model.args = {k: v for k, v in args.items() if k in DEFAULT_CFG_KEYS}  # attach args to model
     model.pt_path = weight  # attach *.pt file path to model
-    model.task = getattr(model, "task", guess_model_task(model))
+    model.task = guess_model_task(model)
     if not hasattr(model, "stride"):
         model.stride = torch.tensor([32.0])
 
-    model = (model.fuse() if fuse and hasattr(model, "fuse") else model).eval().to(device)  # model in eval mode
+    model = model.fuse().eval() if fuse and hasattr(model, "fuse") else model.eval()  # model in eval mode
 
     # Module updates
     for m in model.modules():
@@ -1558,10 +1584,10 @@ def parse_model(d, ch, verbose=True):
     max_channels = float("inf")
     nc, act, scales = (d.get(x) for x in ("nc", "activation", "scales"))
     depth, width, kpt_shape = (d.get(x, 1.0) for x in ("depth_multiple", "width_multiple", "kpt_shape"))
-    scale = d.get("scale")
     if scales:
+        scale = d.get("scale")
         if not scale:
-            scale = next(iter(scales.keys()))
+            scale = tuple(scales.keys())[0]
             LOGGER.warning(f"no model scale passed. Assuming scale='{scale}'.")
         depth, width, max_channels = scales[scale]
 
@@ -1708,7 +1734,7 @@ def parse_model(d, ch, verbose=True):
         m_.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
         if verbose:
-            LOGGER.info(f"{i:>3}{f!s:>20}{n_:>3}{m_.np:10.0f}  {t:<45}{args!s:<30}")  # print
+            LOGGER.info(f"{i:>3}{str(f):>20}{n_:>3}{m_.np:10.0f}  {t:<45}{str(args):<30}")  # print
         save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
         if i == 0:
@@ -1752,7 +1778,7 @@ def guess_model_scale(model_path):
         (str): The size character of the model's scale (n, s, m, l, or x).
     """
     try:
-        return re.search(r"yolo(e-)?[v]?\d+([nslmx])", Path(model_path).stem).group(2)
+        return re.search(r"yolo(e-)?[v]?\d+([nslmx])", Path(model_path).stem).group(2)  # noqa
     except AttributeError:
         return ""
 

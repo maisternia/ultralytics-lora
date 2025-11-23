@@ -1,9 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 import argparse
-from typing import Any
+from typing import Any, Dict, List
 
 import cv2.dnn
 import numpy as np
@@ -36,7 +34,7 @@ def draw_bounding_box(
     cv2.putText(img, label, (x - 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
 
-def main(onnx_model: str, input_image: str) -> list[dict[str, Any]]:
+def main(onnx_model: str, input_image: str) -> List[Dict[str, Any]]:
     """
     Load ONNX model, perform inference, draw bounding boxes, and display the output image.
 
@@ -45,7 +43,7 @@ def main(onnx_model: str, input_image: str) -> list[dict[str, Any]]:
         input_image (str): Path to the input image.
 
     Returns:
-        (list[dict[str, Any]]): List of dictionaries containing detection information such as class_id, class_name,
+        (List[Dict[str, Any]]): List of dictionaries containing detection information such as class_id, class_name,
             confidence, box coordinates, and scale factor.
     """
     # Load the ONNX model
@@ -81,7 +79,7 @@ def main(onnx_model: str, input_image: str) -> list[dict[str, Any]]:
     # Iterate through output to collect bounding boxes, confidence scores, and class IDs
     for i in range(rows):
         classes_scores = outputs[0][i][4:]
-        (_minScore, maxScore, _minClassLoc, (_x, maxClassIndex)) = cv2.minMaxLoc(classes_scores)
+        (minScore, maxScore, minClassLoc, (x, maxClassIndex)) = cv2.minMaxLoc(classes_scores)
         if maxScore >= 0.25:
             box = [
                 outputs[0][i][0] - (0.5 * outputs[0][i][2]),  # x center - width/2 = left x

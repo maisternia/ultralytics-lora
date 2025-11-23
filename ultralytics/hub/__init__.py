@@ -1,28 +1,29 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
+import requests
 
 from ultralytics.data.utils import HUBDatasetStats
 from ultralytics.hub.auth import Auth
 from ultralytics.hub.session import HUBTrainingSession
-from ultralytics.hub.utils import HUB_API_ROOT, HUB_WEB_ROOT, PREFIX
+from ultralytics.hub.utils import HUB_API_ROOT, HUB_WEB_ROOT, PREFIX, events
 from ultralytics.utils import LOGGER, SETTINGS, checks
 
 __all__ = (
-    "HUB_WEB_ROOT",
     "PREFIX",
+    "HUB_WEB_ROOT",
     "HUBTrainingSession",
-    "check_dataset",
-    "export_fmts_hub",
-    "export_model",
-    "get_export",
     "login",
     "logout",
     "reset_model",
+    "export_fmts_hub",
+    "export_model",
+    "get_export",
+    "check_dataset",
+    "events",
 )
 
 
-def login(api_key: str | None = None, save: bool = True) -> bool:
+def login(api_key: str = None, save: bool = True) -> bool:
     """
     Log in to the Ultralytics HUB API using the provided API key.
 
@@ -74,8 +75,6 @@ def logout():
 
 def reset_model(model_id: str = ""):
     """Reset a trained model to an untrained state."""
-    import requests  # scoped as slow import
-
     r = requests.post(f"{HUB_API_ROOT}/model-reset", json={"modelId": model_id}, headers={"x-api-key": Auth().api_key})
     if r.status_code == 200:
         LOGGER.info(f"{PREFIX}Model reset successfully")
@@ -87,7 +86,7 @@ def export_fmts_hub():
     """Return a list of HUB-supported export formats."""
     from ultralytics.engine.exporter import export_formats
 
-    return [*list(export_formats()["Argument"][1:]), "ultralytics_tflite", "ultralytics_coreml"]
+    return list(export_formats()["Argument"][1:]) + ["ultralytics_tflite", "ultralytics_coreml"]
 
 
 def export_model(model_id: str = "", format: str = "torchscript"):
@@ -106,8 +105,6 @@ def export_model(model_id: str = "", format: str = "torchscript"):
         >>> from ultralytics import hub
         >>> hub.export_model(model_id="your_model_id", format="torchscript")
     """
-    import requests  # scoped as slow import
-
     assert format in export_fmts_hub(), f"Unsupported export format '{format}', valid formats are {export_fmts_hub()}"
     r = requests.post(
         f"{HUB_API_ROOT}/v1/models/{model_id}/export", json={"format": format}, headers={"x-api-key": Auth().api_key}
@@ -135,8 +132,6 @@ def get_export(model_id: str = "", format: str = "torchscript"):
         >>> from ultralytics import hub
         >>> result = hub.get_export(model_id="your_model_id", format="torchscript")
     """
-    import requests  # scoped as slow import
-
     assert format in export_fmts_hub(), f"Unsupported export format '{format}', valid formats are {export_fmts_hub()}"
     r = requests.post(
         f"{HUB_API_ROOT}/get-export",

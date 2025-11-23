@@ -1,9 +1,5 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
-from typing import Any
-
 import cv2
 import numpy as np
 
@@ -35,7 +31,7 @@ class Heatmap(ObjectCounter):
         >>> processed_frame = heatmap.process(frame)
     """
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs):
         """
         Initialize the Heatmap class for real-time video stream heatmap generation based on object tracks.
 
@@ -52,12 +48,12 @@ class Heatmap(ObjectCounter):
         self.colormap = self.CFG["colormap"]
         self.heatmap = None
 
-    def heatmap_effect(self, box: list[float]) -> None:
+    def heatmap_effect(self, box):
         """
         Efficiently calculate heatmap area and effect location for applying colormap.
 
         Args:
-            box (list[float]): Bounding box coordinates [x0, y0, x1, y1].
+            box (List[float]): Bounding box coordinates [x0, y0, x1, y1].
         """
         x0, y0, x1, y1 = map(int, box)
         radius_squared = (min(x1 - x0, y1 - y0) // 2) ** 2
@@ -74,7 +70,7 @@ class Heatmap(ObjectCounter):
         # Update only the values within the bounding box in a single vectorized operation
         self.heatmap[y0:y1, x0:x1][within_radius] += 2
 
-    def process(self, im0: np.ndarray) -> SolutionResults:
+    def process(self, im0):
         """
         Generate heatmap for each frame using Ultralytics tracking.
 
@@ -126,6 +122,6 @@ class Heatmap(ObjectCounter):
             plot_im=plot_im,
             in_count=self.in_count,
             out_count=self.out_count,
-            classwise_count=dict(self.classwise_count),
+            classwise_count=dict(self.classwise_counts),
             total_tracks=len(self.track_ids),
         )

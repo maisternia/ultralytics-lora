@@ -1,11 +1,9 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 import argparse
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 import cv2
 import numpy as np
@@ -87,12 +85,12 @@ def mouse_callback(event: int, x: int, y: int, flags: int, param: Any) -> None:
 
 def run(
     weights: str = "yolo11n.pt",
-    source: str | None = None,
+    source: str = None,
     device: str = "cpu",
     view_img: bool = False,
     save_img: bool = False,
     exist_ok: bool = False,
-    classes: list[int] | None = None,
+    classes: List[int] = None,
     line_thickness: int = 2,
     track_thickness: int = 2,
     region_thickness: int = 2,
@@ -111,7 +109,7 @@ def run(
         view_img (bool): Display results in a live window.
         save_img (bool): Save processed video to file.
         exist_ok (bool): Overwrite existing output files without incrementing.
-        classes (list[int], optional): Specific class IDs to detect and track.
+        classes (List[int], optional): Specific class IDs to detect and track.
         line_thickness (int): Thickness of bounding box lines.
         track_thickness (int): Thickness of object tracking lines.
         region_thickness (int): Thickness of counting region boundaries.

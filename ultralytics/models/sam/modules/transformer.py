@@ -1,8 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 import math
+from typing import Tuple, Type
 
 import torch
 from torch import Tensor, nn
@@ -45,7 +44,7 @@ class TwoWayTransformer(nn.Module):
         embedding_dim: int,
         num_heads: int,
         mlp_dim: int,
-        activation: type[nn.Module] = nn.ReLU,
+        activation: Type[nn.Module] = nn.ReLU,
         attention_downsample_rate: int = 2,
     ) -> None:
         """
@@ -83,21 +82,21 @@ class TwoWayTransformer(nn.Module):
 
     def forward(
         self,
-        image_embedding: torch.Tensor,
-        image_pe: torch.Tensor,
-        point_embedding: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        image_embedding: Tensor,
+        image_pe: Tensor,
+        point_embedding: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
         """
         Process image and point embeddings through the Two-Way Transformer.
 
         Args:
-            image_embedding (torch.Tensor): Image to attend to, with shape (B, embedding_dim, H, W).
-            image_pe (torch.Tensor): Positional encoding to add to the image, with same shape as image_embedding.
-            point_embedding (torch.Tensor): Embedding to add to query points, with shape (B, N_points, embedding_dim).
+            image_embedding (Tensor): Image to attend to, with shape (B, embedding_dim, H, W).
+            image_pe (Tensor): Positional encoding to add to the image, with same shape as image_embedding.
+            point_embedding (Tensor): Embedding to add to query points, with shape (B, N_points, embedding_dim).
 
         Returns:
-            queries (torch.Tensor): Processed point embeddings with shape (B, N_points, embedding_dim).
-            keys (torch.Tensor): Processed image embeddings with shape (B, H*W, embedding_dim).
+            queries (Tensor): Processed point embeddings with shape (B, N_points, embedding_dim).
+            keys (Tensor): Processed image embeddings with shape (B, H*W, embedding_dim).
         """
         # BxCxHxW -> BxHWxC == B x N_image_tokens x C
         image_embedding = image_embedding.flatten(2).permute(0, 2, 1)
@@ -163,7 +162,7 @@ class TwoWayAttentionBlock(nn.Module):
         embedding_dim: int,
         num_heads: int,
         mlp_dim: int = 2048,
-        activation: type[nn.Module] = nn.ReLU,
+        activation: Type[nn.Module] = nn.ReLU,
         attention_downsample_rate: int = 2,
         skip_first_layer_pe: bool = False,
     ) -> None:
@@ -197,21 +196,19 @@ class TwoWayAttentionBlock(nn.Module):
 
         self.skip_first_layer_pe = skip_first_layer_pe
 
-    def forward(
-        self, queries: torch.Tensor, keys: torch.Tensor, query_pe: torch.Tensor, key_pe: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, queries: Tensor, keys: Tensor, query_pe: Tensor, key_pe: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Apply two-way attention to process query and key embeddings in a transformer block.
 
         Args:
-            queries (torch.Tensor): Query embeddings with shape (B, N_queries, embedding_dim).
-            keys (torch.Tensor): Key embeddings with shape (B, N_keys, embedding_dim).
-            query_pe (torch.Tensor): Positional encodings for queries with same shape as queries.
-            key_pe (torch.Tensor): Positional encodings for keys with same shape as keys.
+            queries (Tensor): Query embeddings with shape (B, N_queries, embedding_dim).
+            keys (Tensor): Key embeddings with shape (B, N_keys, embedding_dim).
+            query_pe (Tensor): Positional encodings for queries with same shape as queries.
+            key_pe (Tensor): Positional encodings for keys with same shape as keys.
 
         Returns:
-            queries (torch.Tensor): Processed query embeddings with shape (B, N_queries, embedding_dim).
-            keys (torch.Tensor): Processed key embeddings with shape (B, N_keys, embedding_dim).
+            queries (Tensor): Processed query embeddings with shape (B, N_queries, embedding_dim).
+            keys (Tensor): Processed key embeddings with shape (B, N_keys, embedding_dim).
         """
         # Self attention block
         if self.skip_first_layer_pe:
@@ -280,7 +277,7 @@ class Attention(nn.Module):
         embedding_dim: int,
         num_heads: int,
         downsample_rate: int = 1,
-        kv_in_dim: int | None = None,
+        kv_in_dim: int = None,
     ) -> None:
         """
         Initialize the Attention module with specified dimensions and settings.
@@ -307,7 +304,7 @@ class Attention(nn.Module):
         self.out_proj = nn.Linear(self.internal_dim, embedding_dim)
 
     @staticmethod
-    def _separate_heads(x: torch.Tensor, num_heads: int) -> torch.Tensor:
+    def _separate_heads(x: Tensor, num_heads: int) -> Tensor:
         """Separate the input tensor into the specified number of attention heads."""
         b, n, c = x.shape
         x = x.reshape(b, n, num_heads, c // num_heads)
@@ -320,17 +317,17 @@ class Attention(nn.Module):
         x = x.transpose(1, 2)
         return x.reshape(b, n_tokens, n_heads * c_per_head)  # B x N_tokens x C
 
-    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+    def forward(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
         """
         Apply multi-head attention to query, key, and value tensors with optional downsampling.
 
         Args:
-            q (torch.Tensor): Query tensor with shape (B, N_q, embedding_dim).
-            k (torch.Tensor): Key tensor with shape (B, N_k, embedding_dim).
-            v (torch.Tensor): Value tensor with shape (B, N_k, embedding_dim).
+            q (Tensor): Query tensor with shape (B, N_q, embedding_dim).
+            k (Tensor): Key tensor with shape (B, N_k, embedding_dim).
+            v (Tensor): Value tensor with shape (B, N_k, embedding_dim).
 
         Returns:
-            (torch.Tensor): Output tensor after attention with shape (B, N_q, embedding_dim).
+            (Tensor): Output tensor after attention with shape (B, N_q, embedding_dim).
         """
         # Input projections
         q = self.q_proj(q)
