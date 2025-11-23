@@ -280,6 +280,53 @@ def build_grounding(
     )
 
 
+def build_spectrogram_dataset(
+    cfg: IterableSimpleNamespace,
+    img_path: str,
+    batch: int,
+    data: dict[str, Any],
+    mode: str = "train",
+    rect: bool = False,
+    stride: int = 32,
+):
+    """
+    Build and return a SpectrogramDataset for 3-channel spectrogram data.
+
+    Args:
+        cfg (IterableSimpleNamespace): Configuration namespace containing dataset parameters.
+        img_path (str): Path to the folder containing spectrogram images.
+        batch (int): Batch size for the dataset.
+        data (dict): Dataset metadata including class names and channels.
+        mode (str): 'train' for training mode, 'val' for validation mode.
+        rect (bool): Whether to use rectangular batches.
+        stride (int): Stride for the model.
+
+    Returns:
+        (SpectrogramDataset): Configured spectrogram dataset instance.
+    """
+    from ultralytics.models.yololora.dataset import SpectrogramDataset
+
+    return SpectrogramDataset(
+        img_path=img_path,
+        imgsz=cfg.imgsz,
+        batch_size=batch,
+        augment=mode == "train",  # augmentation
+        hyp=cfg,
+        rect=cfg.rect or rect,  # rectangular batches
+        cache=cfg.cache or None,
+        single_cls=cfg.single_cls or False,
+        stride=stride,
+        pad=0.0 if mode == "train" else 0.5,
+        prefix=colorstr(f"{mode}: "),
+        task=cfg.task,
+        classes=cfg.classes,
+        data=data,
+        fraction=cfg.fraction if mode == "train" else 1.0,
+        spectrogram_normalize=getattr(cfg, "spectrogram_normalize", True),
+        spectrogram_clip_range=getattr(cfg, "spectrogram_clip_range", None),
+    )
+
+
 def build_dataloader(
     dataset,
     batch: int,
