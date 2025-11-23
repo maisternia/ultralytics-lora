@@ -1,29 +1,28 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 """Convolution modules."""
 
-from __future__ import annotations
-
 import math
+from typing import List
 
 import numpy as np
 import torch
 import torch.nn as nn
 
 __all__ = (
-    "CBAM",
-    "ChannelAttention",
-    "Concat",
     "Conv",
     "Conv2",
-    "ConvTranspose",
+    "LightConv",
     "DWConv",
     "DWConvTranspose2d",
+    "ConvTranspose",
     "Focus",
     "GhostConv",
-    "Index",
-    "LightConv",
-    "RepConv",
+    "ChannelAttention",
     "SpatialAttention",
+    "CBAM",
+    "Concat",
+    "RepConv",
+    "Index",
 )
 
 
@@ -670,12 +669,12 @@ class Concat(nn.Module):
         super().__init__()
         self.d = dimension
 
-    def forward(self, x: list[torch.Tensor]):
+    def forward(self, x: List[torch.Tensor]):
         """
         Concatenate input tensors along specified dimension.
 
         Args:
-            x (list[torch.Tensor]): List of input tensors.
+            x (List[torch.Tensor]): List of input tensors.
 
         Returns:
             (torch.Tensor): Concatenated tensor.
@@ -701,12 +700,12 @@ class Index(nn.Module):
         super().__init__()
         self.index = index
 
-    def forward(self, x: list[torch.Tensor]):
+    def forward(self, x: List[torch.Tensor]):
         """
         Select and return a particular index from input.
 
         Args:
-            x (list[torch.Tensor]): List of input tensors.
+            x (List[torch.Tensor]): List of input tensors.
 
         Returns:
             (torch.Tensor): Selected tensor.

@@ -1,5 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
+import requests
+
 from ultralytics.hub.utils import HUB_API_ROOT, HUB_WEB_ROOT, PREFIX, request_with_credentials
 from ultralytics.utils import IS_COLAB, LOGGER, SETTINGS, emojis
 
@@ -108,8 +110,6 @@ class Auth:
         Returns:
             (bool): True if authentication is successful, False otherwise.
         """
-        import requests  # scoped as slow import
-
         try:
             if header := self.get_auth_header():
                 r = requests.post(f"{HUB_API_ROOT}/v1/auth", headers=header)

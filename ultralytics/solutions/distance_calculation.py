@@ -1,7 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
 import math
-from typing import Any
+from typing import Any, Dict, List
 
 import cv2
 
@@ -18,8 +18,8 @@ class DistanceCalculation(BaseSolution):
 
     Attributes:
         left_mouse_count (int): Counter for left mouse button clicks.
-        selected_boxes (dict[int, list[float]]): Dictionary to store selected bounding boxes and their track IDs.
-        centroids (list[list[int]]): List to store centroids of selected bounding boxes.
+        selected_boxes (Dict[int, List[float]]): Dictionary to store selected bounding boxes and their track IDs.
+        centroids (List[List[int]]): List to store centroids of selected bounding boxes.
 
     Methods:
         mouse_event_for_distance: Handle mouse events for selecting objects in the video stream.
@@ -33,14 +33,14 @@ class DistanceCalculation(BaseSolution):
         >>> cv2.waitKey(0)
     """
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: Any):
         """Initialize the DistanceCalculation class for measuring object distances in video streams."""
         super().__init__(**kwargs)
 
         # Mouse event information
         self.left_mouse_count = 0
-        self.selected_boxes: dict[int, list[float]] = {}
-        self.centroids: list[list[int]] = []  # Store centroids of selected objects
+        self.selected_boxes: Dict[int, List[float]] = {}
+        self.centroids: List[List[int]] = []  # Store centroids of selected objects
 
     def mouse_event_for_distance(self, event: int, x: int, y: int, flags: int, param: Any) -> None:
         """
@@ -76,7 +76,7 @@ class DistanceCalculation(BaseSolution):
         between two user-selected objects if they have been chosen.
 
         Args:
-            im0 (np.ndarray): The input image frame to process.
+            im0 (numpy.ndarray): The input image frame to process.
 
         Returns:
             (SolutionResults): Contains processed image `plot_im`, `total_tracks` (int) representing the total number

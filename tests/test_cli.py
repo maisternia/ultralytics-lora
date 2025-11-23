@@ -1,14 +1,13 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
 import subprocess
-from pathlib import Path
 
 import pytest
 from PIL import Image
 
 from tests import CUDA_DEVICE_COUNT, CUDA_IS_AVAILABLE, MODELS, TASK_MODEL_DATA
 from ultralytics.utils import ARM64, ASSETS, LINUX, WEIGHTS_DIR, checks
-from ultralytics.utils.torch_utils import TORCH_1_11, TORCH_2_9, WINDOWS
+from ultralytics.utils.torch_utils import TORCH_1_9
 
 
 def run(cmd: str) -> None:
@@ -34,13 +33,13 @@ def test_train(task: str, model: str, data: str) -> None:
 @pytest.mark.parametrize("task,model,data", TASK_MODEL_DATA)
 def test_val(task: str, model: str, data: str) -> None:
     """Test YOLO validation process for specified task, model, and data using a shell command."""
-    run(f"yolo val {task} model={model} data={data} imgsz=32 save_txt save_json visualize")
+    run(f"yolo val {task} model={model} data={data} imgsz=32 save_txt save_json")
 
 
 @pytest.mark.parametrize("task,model,data", TASK_MODEL_DATA)
 def test_predict(task: str, model: str, data: str) -> None:
     """Test YOLO prediction on provided sample assets for specified task and model."""
-    run(f"yolo {task} predict model={model} source={ASSETS} imgsz=32 save save_crop save_txt visualize")
+    run(f"yolo {task} predict model={model} source={ASSETS} imgsz=32 save save_crop save_txt")
 
 
 @pytest.mark.parametrize("model", MODELS)
@@ -49,12 +48,15 @@ def test_export(model: str) -> None:
     run(f"yolo export model={model} format=torchscript imgsz=32")
 
 
-@pytest.mark.skipif(not TORCH_1_11, reason="RTDETR requires torch>=1.11")
-def test_rtdetr(task: str = "detect", model: Path = WEIGHTS_DIR / "rtdetr-l.pt", data: str = "coco8.yaml") -> None:
+def test_rtdetr(task: str = "detect", model: str = "yolov8n-rtdetr.yaml", data: str = "coco8.yaml") -> None:
     """Test the RTDETR functionality within Ultralytics for detection tasks using specified model and data."""
-    # Add comma, spaces, fraction=0.25 args to test single-image training
+    # Warning: must use imgsz=640 (note also add comma, spaces, fraction=0.25 args to test single-image training)
+    run(f"yolo train {task} model={model} data={data} --imgsz= 160 epochs =1, cache = disk fraction=0.25")  # spaces
     run(f"yolo predict {task} model={model} source={ASSETS / 'bus.jpg'} imgsz=160 save save_crop save_txt")
-    run(f"yolo train {task} model={model} data={data} --imgsz= 160 epochs =1, cache = disk fraction=0.25")
+    if TORCH_1_9:
+        weights = WEIGHTS_DIR / "rtdetr-l.pt"
+        run(f"yolo predict {task} model={weights} source={ASSETS / 'bus.jpg'} imgsz=160 save save_crop save_txt")
+        run(f"yolo train {task} model={weights} epochs=1 imgsz=160 cache=disk data=coco8.yaml")
 
 
 @pytest.mark.skipif(checks.IS_PYTHON_3_12, reason="MobileSAM with CLIP is not supported in Python 3.12")
@@ -82,7 +84,7 @@ def test_fastsam(
         everything_results = sam_model(s, device="cpu", retina_masks=True, imgsz=320, conf=0.4, iou=0.9)
 
         # Remove small regions
-        _new_masks, _ = Predictor.remove_small_regions(everything_results[0].masks.data, min_area=20)
+        new_masks, _ = Predictor.remove_small_regions(everything_results[0].masks.data, min_area=20)
 
         # Run inference with bboxes and points and texts prompt at the same time
         sam_model(source, bboxes=[439, 437, 524, 709], points=[[200, 200]], labels=[1], texts="a photo of a dog")
@@ -129,10 +131,3 @@ def test_train_gpu(task: str, model: str, data: str) -> None:
 def test_solutions(solution: str) -> None:
     """Test yolo solutions command-line modes."""
     run(f"yolo solutions {solution} verbose=False")
-
-
-@pytest.mark.skipif(not checks.IS_PYTHON_MINIMUM_3_10 or not TORCH_2_9, reason="Requires Python>=3.10 and Torch>=2.9.0")
-@pytest.mark.skipif(WINDOWS, reason="Skipping test on Windows")
-def test_export_executorch() -> None:
-    """Test exporting a YOLO model to ExecuTorch format via CLI."""
-    run("yolo export model=yolo11n.pt format=executorch imgsz=32")

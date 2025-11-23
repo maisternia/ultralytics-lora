@@ -1,31 +1,28 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 """Transformer modules."""
 
-from __future__ import annotations
-
 import math
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import constant_, xavier_uniform_
 
-from ultralytics.utils.torch_utils import TORCH_1_11
-
 from .conv import Conv
 from .utils import _get_clones, inverse_sigmoid, multi_scale_deformable_attn_pytorch
 
 __all__ = (
-    "AIFI",
-    "MLP",
-    "DeformableTransformerDecoder",
-    "DeformableTransformerDecoderLayer",
-    "LayerNorm2d",
-    "MLPBlock",
-    "MSDeformAttn",
-    "TransformerBlock",
     "TransformerEncoderLayer",
     "TransformerLayer",
+    "TransformerBlock",
+    "MLPBlock",
+    "LayerNorm2d",
+    "AIFI",
+    "DeformableTransformerDecoder",
+    "DeformableTransformerDecoderLayer",
+    "MSDeformAttn",
+    "MLP",
 )
 
 
@@ -91,16 +88,16 @@ class TransformerEncoderLayer(nn.Module):
         self.normalize_before = normalize_before
 
     @staticmethod
-    def with_pos_embed(tensor: torch.Tensor, pos: torch.Tensor | None = None) -> torch.Tensor:
+    def with_pos_embed(tensor: torch.Tensor, pos: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Add position embeddings to the tensor if provided."""
         return tensor if pos is None else tensor + pos
 
     def forward_post(
         self,
         src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        pos: torch.Tensor | None = None,
+        src_mask: Optional[torch.Tensor] = None,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
+        pos: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Perform forward pass with post-normalization.
@@ -125,9 +122,9 @@ class TransformerEncoderLayer(nn.Module):
     def forward_pre(
         self,
         src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        pos: torch.Tensor | None = None,
+        src_mask: Optional[torch.Tensor] = None,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
+        pos: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Perform forward pass with pre-normalization.
@@ -152,9 +149,9 @@ class TransformerEncoderLayer(nn.Module):
     def forward(
         self,
         src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        pos: torch.Tensor | None = None,
+        src_mask: Optional[torch.Tensor] = None,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
+        pos: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Forward propagate the input through the encoder module.
@@ -238,7 +235,7 @@ class AIFI(TransformerEncoderLayer):
         assert embed_dim % 4 == 0, "Embed dimension must be divisible by 4 for 2D sin-cos position embedding"
         grid_w = torch.arange(w, dtype=torch.float32)
         grid_h = torch.arange(h, dtype=torch.float32)
-        grid_w, grid_h = torch.meshgrid(grid_w, grid_h, indexing="ij") if TORCH_1_11 else torch.meshgrid(grid_w, grid_h)
+        grid_w, grid_h = torch.meshgrid(grid_w, grid_h, indexing="ij")
         pos_dim = embed_dim // 4
         omega = torch.arange(pos_dim, dtype=torch.float32) / pos_dim
         omega = 1.0 / (temperature**omega)
@@ -392,7 +389,7 @@ class MLP(nn.Module):
         super().__init__()
         self.num_layers = num_layers
         h = [hidden_dim] * (num_layers - 1)
-        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim, *h], [*h, output_dim]))
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
         self.sigmoid = sigmoid
         self.act = act()
 
@@ -536,8 +533,8 @@ class MSDeformAttn(nn.Module):
         query: torch.Tensor,
         refer_bbox: torch.Tensor,
         value: torch.Tensor,
-        value_shapes: list,
-        value_mask: torch.Tensor | None = None,
+        value_shapes: List,
+        value_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Perform forward pass for multiscale deformable attention.
@@ -652,7 +649,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
         self.norm3 = nn.LayerNorm(d_model)
 
     @staticmethod
-    def with_pos_embed(tensor: torch.Tensor, pos: torch.Tensor | None) -> torch.Tensor:
+    def with_pos_embed(tensor: torch.Tensor, pos: Optional[torch.Tensor]) -> torch.Tensor:
         """Add positional embeddings to the input tensor, if provided."""
         return tensor if pos is None else tensor + pos
 
@@ -675,10 +672,10 @@ class DeformableTransformerDecoderLayer(nn.Module):
         embed: torch.Tensor,
         refer_bbox: torch.Tensor,
         feats: torch.Tensor,
-        shapes: list,
-        padding_mask: torch.Tensor | None = None,
-        attn_mask: torch.Tensor | None = None,
-        query_pos: torch.Tensor | None = None,
+        shapes: List,
+        padding_mask: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
+        query_pos: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Perform the forward pass through the entire decoder layer.
@@ -752,12 +749,12 @@ class DeformableTransformerDecoder(nn.Module):
         embed: torch.Tensor,  # decoder embeddings
         refer_bbox: torch.Tensor,  # anchor
         feats: torch.Tensor,  # image features
-        shapes: list,  # feature shapes
+        shapes: List,  # feature shapes
         bbox_head: nn.Module,
         score_head: nn.Module,
         pos_mlp: nn.Module,
-        attn_mask: torch.Tensor | None = None,
-        padding_mask: torch.Tensor | None = None,
+        attn_mask: Optional[torch.Tensor] = None,
+        padding_mask: Optional[torch.Tensor] = None,
     ):
         """
         Perform the forward pass through the entire decoder.

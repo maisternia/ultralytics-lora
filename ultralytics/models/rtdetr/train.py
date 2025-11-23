@@ -1,8 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 from copy import copy
+from typing import Optional
 
 from ultralytics.models.yolo.detect import DetectionTrainer
 from ultralytics.nn.tasks import RTDETRDetectionModel
@@ -42,7 +41,7 @@ class RTDETRTrainer(DetectionTrainer):
         >>> trainer.train()
     """
 
-    def get_model(self, cfg: dict | None = None, weights: str | None = None, verbose: bool = True):
+    def get_model(self, cfg: Optional[dict] = None, weights: Optional[str] = None, verbose: bool = True):
         """
         Initialize and return an RT-DETR model for object detection tasks.
 
@@ -59,7 +58,7 @@ class RTDETRTrainer(DetectionTrainer):
             model.load(weights)
         return model
 
-    def build_dataset(self, img_path: str, mode: str = "val", batch: int | None = None):
+    def build_dataset(self, img_path: str, mode: str = "val", batch: Optional[int] = None):
         """
         Build and return an RT-DETR dataset for training or validation.
 

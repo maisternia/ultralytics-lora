@@ -1,7 +1,5 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
 import glob
 import math
 import os
@@ -10,7 +8,7 @@ import urllib
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Thread
-from typing import Any
+from typing import Any, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -59,17 +57,17 @@ class LoadStreams:
     streams simultaneously, making it suitable for real-time video analysis tasks.
 
     Attributes:
-        sources (list[str]): The source input paths or URLs for the video streams.
+        sources (List[str]): The source input paths or URLs for the video streams.
         vid_stride (int): Video frame-rate stride.
         buffer (bool): Whether to buffer input streams.
         running (bool): Flag to indicate if the streaming thread is running.
         mode (str): Set to 'stream' indicating real-time capture.
-        imgs (list[list[np.ndarray]]): List of image frames for each stream.
-        fps (list[float]): List of FPS for each stream.
-        frames (list[int]): List of total frames for each stream.
-        threads (list[Thread]): List of threads for each stream.
-        shape (list[tuple[int, int, int]]): List of shapes for each stream.
-        caps (list[cv2.VideoCapture]): List of cv2.VideoCapture objects for each stream.
+        imgs (List[List[np.ndarray]]): List of image frames for each stream.
+        fps (List[float]): List of FPS for each stream.
+        frames (List[int]): List of total frames for each stream.
+        threads (List[Thread]): List of threads for each stream.
+        shape (List[Tuple[int, int, int]]): List of shapes for each stream.
+        caps (List[cv2.VideoCapture]): List of cv2.VideoCapture objects for each stream.
         bs (int): Batch size for processing.
         cv2_flag (int): OpenCV flag for image reading (grayscale or RGB).
 
@@ -188,13 +186,14 @@ class LoadStreams:
                 cap.release()  # release video capture
             except Exception as e:
                 LOGGER.warning(f"Could not release VideoCapture object: {e}")
+        cv2.destroyAllWindows()
 
     def __iter__(self):
         """Iterate through YOLO image feed and re-open unresponsive streams."""
         self.count = -1
         return self
 
-    def __next__(self) -> tuple[list[str], list[np.ndarray], list[str]]:
+    def __next__(self) -> Tuple[List[str], List[np.ndarray], List[str]]:
         """Return the next batch of frames from multiple video streams for processing."""
         self.count += 1
 
@@ -202,7 +201,7 @@ class LoadStreams:
         for i, x in enumerate(self.imgs):
             # Wait until a frame is available in each buffer
             while not x:
-                if not self.threads[i].is_alive():
+                if not self.threads[i].is_alive() or cv2.waitKey(1) == ord("q"):  # q to quit
                     self.close()
                     raise StopIteration
                 time.sleep(1 / min(self.fps))
@@ -245,7 +244,7 @@ class LoadScreenshots:
         sct (mss.mss): Screen capture object from `mss` library.
         bs (int): Batch size, set to 1.
         fps (int): Frames per second, set to 30.
-        monitor (dict[str, int]): Monitor configuration details.
+        monitor (Dict[str, int]): Monitor configuration details.
         cv2_flag (int): OpenCV flag for image reading (grayscale or RGB).
 
     Methods:
@@ -267,7 +266,7 @@ class LoadScreenshots:
             channels (int): Number of image channels (1 for grayscale, 3 for RGB).
         """
         check_requirements("mss")
-        import mss
+        import mss  # noqa
 
         source, *params = source.split()
         self.screen, left, top, width, height = 0, None, None, None, None  # default to full screen 0
@@ -296,7 +295,7 @@ class LoadScreenshots:
         """Yield the next screenshot image from the specified screen or region for processing."""
         return self
 
-    def __next__(self) -> tuple[list[str], list[np.ndarray], list[str]]:
+    def __next__(self) -> Tuple[List[str], List[np.ndarray], List[str]]:
         """Capture and return the next screenshot as a numpy array using the mss library."""
         im0 = np.asarray(self.sct.grab(self.monitor))[:, :, :3]  # BGRA to BGR
         im0 = cv2.cvtColor(im0, cv2.COLOR_BGR2GRAY)[..., None] if self.cv2_flag == cv2.IMREAD_GRAYSCALE else im0
@@ -314,9 +313,9 @@ class LoadImagesAndVideos:
     single image files, video files, and lists of image and video paths.
 
     Attributes:
-        files (list[str]): List of image and video file paths.
+        files (List[str]): List of image and video file paths.
         nf (int): Total number of files (images and videos).
-        video_flag (list[bool]): Flags indicating whether a file is a video (True) or an image (False).
+        video_flag (List[bool]): Flags indicating whether a file is a video (True) or an image (False).
         mode (str): Current mode, 'image' or 'video'.
         vid_stride (int): Stride for video frame-rate.
         bs (int): Batch size.
@@ -346,21 +345,20 @@ class LoadImagesAndVideos:
         - Can read from a text file containing paths to images and videos.
     """
 
-    def __init__(self, path: str | Path | list, batch: int = 1, vid_stride: int = 1, channels: int = 3):
+    def __init__(self, path: Union[str, Path, List], batch: int = 1, vid_stride: int = 1, channels: int = 3):
         """
         Initialize dataloader for images and videos, supporting various input formats.
 
         Args:
-            path (str | Path | list): Path to images/videos, directory, or list of paths.
+            path (str | Path | List): Path to images/videos, directory, or list of paths.
             batch (int): Batch size for processing.
             vid_stride (int): Video frame-rate stride.
             channels (int): Number of image channels (1 for grayscale, 3 for RGB).
         """
         parent = None
-        if isinstance(path, str) and Path(path).suffix in {".txt", ".csv"}:  # txt/csv file with source paths
-            parent, content = Path(path).parent, Path(path).read_text()
-            path = content.splitlines() if Path(path).suffix == ".txt" else content.split(",")  # list of sources
-            path = [p.strip() for p in path]
+        if isinstance(path, str) and Path(path).suffix == ".txt":  # *.txt file with img/vid/dir on each line
+            parent = Path(path).parent
+            path = Path(path).read_text().splitlines()  # list of sources
         files = []
         for p in sorted(path) if isinstance(path, (list, tuple)) else [path]:
             a = str(Path(p).absolute())  # do not use .resolve() https://github.com/ultralytics/ultralytics/issues/2912
@@ -405,7 +403,7 @@ class LoadImagesAndVideos:
         self.count = 0
         return self
 
-    def __next__(self) -> tuple[list[str], list[np.ndarray], list[str]]:
+    def __next__(self) -> Tuple[List[str], List[np.ndarray], List[str]]:
         """Return the next batch of images or video frames with their paths and metadata."""
         paths, imgs, info = [], [], []
         while len(imgs) < self.bs:
@@ -454,9 +452,9 @@ class LoadImagesAndVideos:
                 self.mode = "image"
                 if path.rpartition(".")[-1].lower() == "heic":
                     # Load HEIC image using Pillow with pillow-heif
-                    check_requirements("pi-heif")
+                    check_requirements("pillow-heif")
 
-                    from pi_heif import register_heif_opener
+                    from pillow_heif import register_heif_opener
 
                     register_heif_opener()  # Register HEIF opener with Pillow
                     with Image.open(path) as img:
@@ -497,8 +495,8 @@ class LoadPilAndNumpy:
     validation and format conversion to ensure that the images are in the required format for downstream processing.
 
     Attributes:
-        paths (list[str]): List of image paths or autogenerated filenames.
-        im0 (list[np.ndarray]): List of images stored as Numpy arrays.
+        paths (List[str]): List of image paths or autogenerated filenames.
+        im0 (List[np.ndarray]): List of images stored as Numpy arrays.
         mode (str): Type of data being processed, set to 'image'.
         bs (int): Batch size, equivalent to the length of `im0`.
 
@@ -516,12 +514,12 @@ class LoadPilAndNumpy:
         Loaded 2 images
     """
 
-    def __init__(self, im0: Image.Image | np.ndarray | list, channels: int = 3):
+    def __init__(self, im0: Union[Image.Image, np.ndarray, List], channels: int = 3):
         """
         Initialize a loader for PIL and Numpy images, converting inputs to a standardized format.
 
         Args:
-            im0 (PIL.Image.Image | np.ndarray | list): Single image or list of images in PIL or numpy format.
+            im0 (PIL.Image.Image | np.ndarray | List): Single image or list of images in PIL or numpy format.
             channels (int): Number of image channels (1 for grayscale, 3 for RGB).
         """
         if not isinstance(im0, list):
@@ -534,7 +532,7 @@ class LoadPilAndNumpy:
         self.bs = len(self.im0)
 
     @staticmethod
-    def _single_check(im: Image.Image | np.ndarray, flag: str = "RGB") -> np.ndarray:
+    def _single_check(im: Union[Image.Image, np.ndarray], flag: str = "RGB") -> np.ndarray:
         """Validate and format an image to numpy array, ensuring RGB order and contiguous memory."""
         assert isinstance(im, (Image.Image, np.ndarray)), f"Expected PIL/np.ndarray image type, but got {type(im)}"
         if isinstance(im, Image.Image):
@@ -550,7 +548,7 @@ class LoadPilAndNumpy:
         """Return the length of the 'im0' attribute, representing the number of loaded images."""
         return len(self.im0)
 
-    def __next__(self) -> tuple[list[str], list[np.ndarray], list[str]]:
+    def __next__(self) -> Tuple[List[str], List[np.ndarray], List[str]]:
         """Return the next batch of images, paths, and metadata for processing."""
         if self.count == 1:  # loop only once as it's batch inference
             raise StopIteration
@@ -574,7 +572,7 @@ class LoadTensor:
         im0 (torch.Tensor): The input tensor containing the image(s) with shape (B, C, H, W).
         bs (int): Batch size, inferred from the shape of `im0`.
         mode (str): Current processing mode, set to 'image'.
-        paths (list[str]): List of image paths or auto-generated filenames.
+        paths (List[str]): List of image paths or auto-generated filenames.
 
     Methods:
         _single_check: Validates and formats an input tensor.
@@ -626,7 +624,7 @@ class LoadTensor:
         self.count = 0
         return self
 
-    def __next__(self) -> tuple[list[str], torch.Tensor, list[str]]:
+    def __next__(self) -> Tuple[List[str], torch.Tensor, List[str]]:
         """Yield the next batch of tensor images and metadata for processing."""
         if self.count == 1:
             raise StopIteration
@@ -638,7 +636,7 @@ class LoadTensor:
         return self.bs
 
 
-def autocast_list(source: list[Any]) -> list[Image.Image | np.ndarray]:
+def autocast_list(source: List[Any]) -> List[Union[Image.Image, np.ndarray]]:
     """Merge a list of sources into a list of numpy arrays or PIL images for Ultralytics prediction."""
     files = []
     for im in source:
@@ -655,7 +653,7 @@ def autocast_list(source: list[Any]) -> list[Image.Image | np.ndarray]:
     return files
 
 
-def get_best_youtube_url(url: str, method: str = "pytube") -> str | None:
+def get_best_youtube_url(url: str, method: str = "pytube") -> Optional[str]:
     """
     Retrieve the URL of the best quality MP4 video stream from a given YouTube video.
 
@@ -690,7 +688,7 @@ def get_best_youtube_url(url: str, method: str = "pytube") -> str | None:
 
     elif method == "pafy":
         check_requirements(("pafy", "youtube_dl==2020.12.2"))
-        import pafy
+        import pafy  # noqa
 
         return pafy.new(url).getbestvideo(preftype="mp4").url
 

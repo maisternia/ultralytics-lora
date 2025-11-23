@@ -8,8 +8,6 @@ composed of classes and functions, and also creates a navigation menu for use in
 Note: Must be run from repository root directory. Do not run from docs directory.
 """
 
-from __future__ import annotations
-
 import re
 import subprocess
 from collections import defaultdict
@@ -31,11 +29,9 @@ MKDOCS_YAML = PACKAGE_DIR.parent / "mkdocs.yml"
 
 
 def extract_classes_and_functions(filepath: Path) -> tuple[list[str], list[str]]:
-    """Extract top-level class and (a)sync function names from a Python file."""
+    """Extract class and function names from a given Python file."""
     content = filepath.read_text()
-    classes = re.findall(r"(?:^|\n)class\s(\w+)(?:\(|:)", content)
-    functions = re.findall(r"(?:^|\n)(?:async\s+)?def\s(\w+)\(", content)
-    return classes, functions
+    return (re.findall(r"(?:^|\n)class\s(\w+)(?:\(|:)", content), re.findall(r"(?:^|\n)def\s(\w+)\(", content))
 
 
 def create_markdown(py_filepath: Path, module_path: str, classes: list[str], functions: list[str]) -> Path:
@@ -145,11 +141,10 @@ def update_mkdocs_file(reference_yaml: str) -> None:
 
     # Build new section with proper indentation
     new_section_lines = ["\n  - Reference:"]
-    new_section_lines.extend(
-        f"    {line}"
-        for line in reference_yaml.splitlines()
-        if line.strip() != "- reference:"  # Skip redundant header
-    )
+    for line in reference_yaml.splitlines():
+        if line.strip() == "- reference:":  # Skip redundant header
+            continue
+        new_section_lines.append(f"    {line}")
     new_ref_section = "\n".join(new_section_lines) + "\n"
 
     if ref_match:
@@ -173,15 +168,17 @@ def update_mkdocs_file(reference_yaml: str) -> None:
         MKDOCS_YAML.write_text(new_content)
         subprocess.run(["npx", "prettier", "--write", str(MKDOCS_YAML)], check=False, cwd=PACKAGE_DIR.parent)
         print(f"Updated Reference section in {MKDOCS_YAML}")
-    elif help_match := re.search(r"(\n  - Help:)", mkdocs_content):
-        # No existing Reference section, we need to add it
-        help_section = help_match.group(1)
-        # Insert before Help section
-        new_content = mkdocs_content.replace(help_section, f"{new_ref_section}{help_section}")
-        MKDOCS_YAML.write_text(new_content)
-        print(f"Added new Reference section before Help in {MKDOCS_YAML}")
     else:
-        print("Could not find a suitable location to add Reference section")
+        # No existing Reference section, we need to add it
+        help_match = re.search(r"(\n  - Help:)", mkdocs_content)
+        if help_match:
+            help_section = help_match.group(1)
+            # Insert before Help section
+            new_content = mkdocs_content.replace(help_section, f"{new_ref_section}{help_section}")
+            MKDOCS_YAML.write_text(new_content)
+            print(f"Added new Reference section before Help in {MKDOCS_YAML}")
+        else:
+            print("Could not find a suitable location to add Reference section")
 
 
 def main():

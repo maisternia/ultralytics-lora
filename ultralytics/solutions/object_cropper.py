@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import Any
 
 from ultralytics.solutions.solutions import BaseSolution, SolutionResults
 from ultralytics.utils.plotting import save_one_box
@@ -31,7 +30,7 @@ class ObjectCropper(BaseSolution):
         >>> print(f"Total cropped objects: {cropper.crop_idx}")
     """
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, **kwargs):
         """
         Initialize the ObjectCropper class for cropping objects from detected bounding boxes.
 
@@ -52,12 +51,12 @@ class ObjectCropper(BaseSolution):
         self.iou = self.CFG["iou"]
         self.conf = self.CFG["conf"]
 
-    def process(self, im0) -> SolutionResults:
+    def process(self, im0):
         """
         Crop detected objects from the input image and save them as separate images.
 
         Args:
-            im0 (np.ndarray): The input image containing detected objects.
+            im0 (numpy.ndarray): The input image containing detected objects.
 
         Returns:
             (SolutionResults): A SolutionResults object containing the total number of cropped objects and processed
@@ -78,7 +77,6 @@ class ObjectCropper(BaseSolution):
                 device=self.CFG["device"],
                 verbose=False,
             )[0]
-            self.clss = results.boxes.cls.tolist()  # required for logging only.
 
         for box in results.boxes:
             self.crop_idx += 1

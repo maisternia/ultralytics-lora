@@ -1,8 +1,6 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-from __future__ import annotations
-
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -23,7 +21,7 @@ class DETRLoss(nn.Module):
 
     Attributes:
         nc (int): Number of classes.
-        loss_gain (dict[str, float]): Coefficients for different loss components.
+        loss_gain (Dict[str, float]): Coefficients for different loss components.
         aux_loss (bool): Whether to compute auxiliary losses.
         use_fl (bool): Whether to use FocalLoss.
         use_vfl (bool): Whether to use VarifocalLoss.
@@ -38,7 +36,7 @@ class DETRLoss(nn.Module):
     def __init__(
         self,
         nc: int = 80,
-        loss_gain: dict[str, float] | None = None,
+        loss_gain: Optional[Dict[str, float]] = None,
         aux_loss: bool = True,
         use_fl: bool = True,
         use_vfl: bool = False,
@@ -55,7 +53,7 @@ class DETRLoss(nn.Module):
 
         Args:
             nc (int): Number of classes.
-            loss_gain (dict[str, float], optional): Coefficients for different loss components.
+            loss_gain (Dict[str, float], optional): Coefficients for different loss components.
             aux_loss (bool): Whether to use auxiliary losses from each decoder layer.
             use_fl (bool): Whether to use FocalLoss.
             use_vfl (bool): Whether to use VarifocalLoss.
@@ -81,7 +79,7 @@ class DETRLoss(nn.Module):
 
     def _get_loss_class(
         self, pred_scores: torch.Tensor, targets: torch.Tensor, gt_scores: torch.Tensor, num_gts: int, postfix: str = ""
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         """
         Compute classification loss based on predictions, target values, and ground truth scores.
 
@@ -93,7 +91,7 @@ class DETRLoss(nn.Module):
             postfix (str, optional): String to append to the loss name for identification in multi-loss scenarios.
 
         Returns:
-            (dict[str, torch.Tensor]): Dictionary containing classification loss value.
+            (Dict[str, torch.Tensor]): Dictionary containing classification loss value.
 
         Notes:
             The function supports different classification loss types:
@@ -123,7 +121,7 @@ class DETRLoss(nn.Module):
 
     def _get_loss_bbox(
         self, pred_bboxes: torch.Tensor, gt_bboxes: torch.Tensor, postfix: str = ""
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         """
         Compute bounding box and GIoU losses for predicted and ground truth bounding boxes.
 
@@ -133,7 +131,7 @@ class DETRLoss(nn.Module):
             postfix (str, optional): String to append to the loss names for identification in multi-loss scenarios.
 
         Returns:
-            (dict[str, torch.Tensor]): Dictionary containing:
+            (Dict[str, torch.Tensor]): Dictionary containing:
                 - loss_bbox{postfix}: L1 loss between predicted and ground truth boxes, scaled by the bbox loss gain.
                 - loss_giou{postfix}: GIoU loss between predicted and ground truth boxes, scaled by the giou loss gain.
 
@@ -193,12 +191,12 @@ class DETRLoss(nn.Module):
         pred_scores: torch.Tensor,
         gt_bboxes: torch.Tensor,
         gt_cls: torch.Tensor,
-        gt_groups: list[int],
-        match_indices: list[tuple] | None = None,
+        gt_groups: List[int],
+        match_indices: Optional[List[Tuple]] = None,
         postfix: str = "",
-        masks: torch.Tensor | None = None,
-        gt_mask: torch.Tensor | None = None,
-    ) -> dict[str, torch.Tensor]:
+        masks: Optional[torch.Tensor] = None,
+        gt_mask: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
         """
         Get auxiliary losses for intermediate decoder layers.
 
@@ -207,14 +205,14 @@ class DETRLoss(nn.Module):
             pred_scores (torch.Tensor): Predicted scores from auxiliary layers.
             gt_bboxes (torch.Tensor): Ground truth bounding boxes.
             gt_cls (torch.Tensor): Ground truth classes.
-            gt_groups (list[int]): Number of ground truths per image.
-            match_indices (list[tuple], optional): Pre-computed matching indices.
+            gt_groups (List[int]): Number of ground truths per image.
+            match_indices (List[Tuple], optional): Pre-computed matching indices.
             postfix (str, optional): String to append to loss names.
             masks (torch.Tensor, optional): Predicted masks if using segmentation.
             gt_mask (torch.Tensor, optional): Ground truth masks if using segmentation.
 
         Returns:
-            (dict[str, torch.Tensor]): Dictionary of auxiliary losses.
+            (Dict[str, torch.Tensor]): Dictionary of auxiliary losses.
         """
         # NOTE: loss class, bbox, giou, mask, dice
         loss = torch.zeros(5 if masks is not None else 3, device=pred_bboxes.device)
@@ -260,15 +258,15 @@ class DETRLoss(nn.Module):
         return loss
 
     @staticmethod
-    def _get_index(match_indices: list[tuple]) -> tuple[tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
+    def _get_index(match_indices: List[Tuple]) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         """
         Extract batch indices, source indices, and destination indices from match indices.
 
         Args:
-            match_indices (list[tuple]): List of tuples containing matched indices.
+            match_indices (List[Tuple]): List of tuples containing matched indices.
 
         Returns:
-            batch_idx (tuple[torch.Tensor, torch.Tensor]): Tuple containing (batch_idx, src_idx).
+            batch_idx (Tuple[torch.Tensor, torch.Tensor]): Tuple containing (batch_idx, src_idx).
             dst_idx (torch.Tensor): Destination indices.
         """
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(match_indices)])
@@ -277,15 +275,15 @@ class DETRLoss(nn.Module):
         return (batch_idx, src_idx), dst_idx
 
     def _get_assigned_bboxes(
-        self, pred_bboxes: torch.Tensor, gt_bboxes: torch.Tensor, match_indices: list[tuple]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self, pred_bboxes: torch.Tensor, gt_bboxes: torch.Tensor, match_indices: List[Tuple]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Assign predicted bounding boxes to ground truth bounding boxes based on match indices.
 
         Args:
             pred_bboxes (torch.Tensor): Predicted bounding boxes.
             gt_bboxes (torch.Tensor): Ground truth bounding boxes.
-            match_indices (list[tuple]): List of tuples containing matched indices.
+            match_indices (List[Tuple]): List of tuples containing matched indices.
 
         Returns:
             pred_assigned (torch.Tensor): Assigned predicted bounding boxes.
@@ -311,12 +309,12 @@ class DETRLoss(nn.Module):
         pred_scores: torch.Tensor,
         gt_bboxes: torch.Tensor,
         gt_cls: torch.Tensor,
-        gt_groups: list[int],
-        masks: torch.Tensor | None = None,
-        gt_mask: torch.Tensor | None = None,
+        gt_groups: List[int],
+        masks: Optional[torch.Tensor] = None,
+        gt_mask: Optional[torch.Tensor] = None,
         postfix: str = "",
-        match_indices: list[tuple] | None = None,
-    ) -> dict[str, torch.Tensor]:
+        match_indices: Optional[List[Tuple]] = None,
+    ) -> Dict[str, torch.Tensor]:
         """
         Calculate losses for a single prediction layer.
 
@@ -325,14 +323,14 @@ class DETRLoss(nn.Module):
             pred_scores (torch.Tensor): Predicted class scores.
             gt_bboxes (torch.Tensor): Ground truth bounding boxes.
             gt_cls (torch.Tensor): Ground truth classes.
-            gt_groups (list[int]): Number of ground truths per image.
+            gt_groups (List[int]): Number of ground truths per image.
             masks (torch.Tensor, optional): Predicted masks if using segmentation.
             gt_mask (torch.Tensor, optional): Ground truth masks if using segmentation.
             postfix (str, optional): String to append to loss names.
-            match_indices (list[tuple], optional): Pre-computed matching indices.
+            match_indices (List[Tuple], optional): Pre-computed matching indices.
 
         Returns:
-            (dict[str, torch.Tensor]): Dictionary of losses.
+            (Dict[str, torch.Tensor]): Dictionary of losses.
         """
         if match_indices is None:
             match_indices = self.matcher(
@@ -360,22 +358,22 @@ class DETRLoss(nn.Module):
         self,
         pred_bboxes: torch.Tensor,
         pred_scores: torch.Tensor,
-        batch: dict[str, Any],
+        batch: Dict[str, Any],
         postfix: str = "",
         **kwargs: Any,
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         """
         Calculate loss for predicted bounding boxes and scores.
 
         Args:
             pred_bboxes (torch.Tensor): Predicted bounding boxes, shape (L, B, N, 4).
             pred_scores (torch.Tensor): Predicted class scores, shape (L, B, N, C).
-            batch (dict[str, Any]): Batch information containing cls, bboxes, and gt_groups.
+            batch (Dict[str, Any]): Batch information containing cls, bboxes, and gt_groups.
             postfix (str, optional): Postfix for loss names.
             **kwargs (Any): Additional arguments, may include 'match_indices'.
 
         Returns:
-            (dict[str, torch.Tensor]): Computed losses, including main and auxiliary (if enabled).
+            (Dict[str, torch.Tensor]): Computed losses, including main and auxiliary (if enabled).
 
         Notes:
             Uses last elements of pred_bboxes and pred_scores for main loss, and the rest for auxiliary losses if
@@ -409,24 +407,24 @@ class RTDETRDetectionLoss(DETRLoss):
 
     def forward(
         self,
-        preds: tuple[torch.Tensor, torch.Tensor],
-        batch: dict[str, Any],
-        dn_bboxes: torch.Tensor | None = None,
-        dn_scores: torch.Tensor | None = None,
-        dn_meta: dict[str, Any] | None = None,
-    ) -> dict[str, torch.Tensor]:
+        preds: Tuple[torch.Tensor, torch.Tensor],
+        batch: Dict[str, Any],
+        dn_bboxes: Optional[torch.Tensor] = None,
+        dn_scores: Optional[torch.Tensor] = None,
+        dn_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, torch.Tensor]:
         """
         Forward pass to compute detection loss with optional denoising loss.
 
         Args:
-            preds (tuple[torch.Tensor, torch.Tensor]): Tuple containing predicted bounding boxes and scores.
-            batch (dict[str, Any]): Batch data containing ground truth information.
+            preds (Tuple[torch.Tensor, torch.Tensor]): Tuple containing predicted bounding boxes and scores.
+            batch (Dict[str, Any]): Batch data containing ground truth information.
             dn_bboxes (torch.Tensor, optional): Denoising bounding boxes.
             dn_scores (torch.Tensor, optional): Denoising scores.
-            dn_meta (dict[str, Any], optional): Metadata for denoising.
+            dn_meta (Dict[str, Any], optional): Metadata for denoising.
 
         Returns:
-            (dict[str, torch.Tensor]): Dictionary containing total loss and denoising loss if applicable.
+            (Dict[str, torch.Tensor]): Dictionary containing total loss and denoising loss if applicable.
         """
         pred_bboxes, pred_scores = preds
         total_loss = super().forward(pred_bboxes, pred_scores, batch)
@@ -450,18 +448,18 @@ class RTDETRDetectionLoss(DETRLoss):
 
     @staticmethod
     def get_dn_match_indices(
-        dn_pos_idx: list[torch.Tensor], dn_num_group: int, gt_groups: list[int]
-    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        dn_pos_idx: List[torch.Tensor], dn_num_group: int, gt_groups: List[int]
+    ) -> List[Tuple[torch.Tensor, torch.Tensor]]:
         """
         Get match indices for denoising.
 
         Args:
-            dn_pos_idx (list[torch.Tensor]): List of tensors containing positive indices for denoising.
+            dn_pos_idx (List[torch.Tensor]): List of tensors containing positive indices for denoising.
             dn_num_group (int): Number of denoising groups.
-            gt_groups (list[int]): List of integers representing number of ground truths per image.
+            gt_groups (List[int]): List of integers representing number of ground truths per image.
 
         Returns:
-            (list[tuple[torch.Tensor, torch.Tensor]]): List of tuples containing matched indices for denoising.
+            (List[Tuple[torch.Tensor, torch.Tensor]]): List of tuples containing matched indices for denoising.
         """
         dn_match_indices = []
         idx_groups = torch.as_tensor([0, *gt_groups[:-1]]).cumsum_(0)
