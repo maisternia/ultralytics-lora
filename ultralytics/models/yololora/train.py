@@ -14,7 +14,7 @@ from typing import Any
 from ultralytics.data import build_dataloader
 from ultralytics.models.yolo.detect import DetectionTrainer
 from ultralytics.models.yololora.dataset import SpectrogramDataset
-from ultralytics.utils import DEFAULT_CFG
+from ultralytics.utils import DEFAULT_CFG, LOGGER
 from ultralytics.utils.torch_utils import torch_distributed_zero_first, unwrap_model
 
 
@@ -109,8 +109,6 @@ class SpectrogramTrainer(DetectionTrainer):
             dataset = self.build_dataset(dataset_path, mode, batch_size)
         shuffle = mode == "train"
         if getattr(dataset, "rect", False) and shuffle:
-            from ultralytics.utils import LOGGER
-
             LOGGER.warning("'rect=True' is incompatible with DataLoader shuffle, setting shuffle=False")
             shuffle = False
         return build_dataloader(
