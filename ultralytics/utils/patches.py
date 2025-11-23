@@ -1,9 +1,13 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 """Monkey patches to update/extend functionality of existing functions."""
 
+from __future__ import annotations
+
 import time
+from contextlib import contextmanager
+from copy import copy
 from pathlib import Path
-from typing import List, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -13,7 +17,7 @@ import torch
 _imshow = cv2.imshow  # copy to avoid recursion errors
 
 
-def imread(filename: str, flags: int = cv2.IMREAD_COLOR) -> Optional[np.ndarray]:
+def imread(filename: str, flags: int = cv2.IMREAD_COLOR) -> np.ndarray | None:
     """
     Read an image from a file with multilanguage filename support.
 
@@ -37,17 +41,17 @@ def imread(filename: str, flags: int = cv2.IMREAD_COLOR) -> Optional[np.ndarray]
         return None
     else:
         im = cv2.imdecode(file_bytes, flags)
-        return im[..., None] if im.ndim == 2 else im  # Always ensure 3 dimensions
+        return im[..., None] if im is not None and im.ndim == 2 else im  # Always ensure 3 dimensions
 
 
-def imwrite(filename: str, img: np.ndarray, params: Optional[List[int]] = None) -> bool:
+def imwrite(filename: str, img: np.ndarray, params: list[int] | None = None) -> bool:
     """
     Write an image to a file with multilanguage filename support.
 
     Args:
         filename (str): Path to the file to write.
         img (np.ndarray): Image to write.
-        params (List[int], optional): Additional parameters for image encoding.
+        params (list[int], optional): Additional parameters for image encoding.
 
     Returns:
         (bool): True if the file was written successfully, False otherwise.
@@ -88,7 +92,6 @@ def imshow(winname: str, mat: np.ndarray) -> None:
 
 
 # PyTorch functions ----------------------------------------------------------------------------------------------------
-_torch_load = torch.load  # copy to avoid recursion errors
 _torch_save = torch.save
 
 
@@ -114,7 +117,7 @@ def torch_load(*args, **kwargs):
     if TORCH_1_13 and "weights_only" not in kwargs:
         kwargs["weights_only"] = False
 
-    return _torch_load(*args, **kwargs)
+    return torch.load(*args, **kwargs)
 
 
 def torch_save(*args, **kwargs):
@@ -139,3 +142,48 @@ def torch_save(*args, **kwargs):
             if i == 3:
                 raise e
             time.sleep((2**i) / 2)  # Exponential backoff: 0.5s, 1.0s, 2.0s
+
+
+@contextmanager
+def arange_patch(args):
+    """
+    Workaround for ONNX torch.arange incompatibility with FP16.
+
+    https://github.com/pytorch/pytorch/issues/148041.
+    """
+    if args.dynamic and args.half and args.format == "onnx":
+        func = torch.arange
+
+        def arange(*args, dtype=None, **kwargs):
+            """Return a 1-D tensor of size with values from the interval and common difference."""
+            return func(*args, **kwargs).to(dtype)  # cast to dtype instead of passing dtype
+
+        torch.arange = arange  # patch
+        yield
+        torch.arange = func  # unpatch
+    else:
+        yield
+
+
+@contextmanager
+def override_configs(args, overrides: dict[str, Any] | None = None):
+    """
+    Context manager to temporarily override configurations in args.
+
+    Args:
+        args (IterableSimpleNamespace): Original configuration arguments.
+        overrides (dict[str, Any]): Dictionary of overrides to apply.
+
+    Yields:
+        (IterableSimpleNamespace): Configuration arguments with overrides applied.
+    """
+    if overrides:
+        original_args = copy(args)
+        for key, value in overrides.items():
+            setattr(args, key, value)
+        try:
+            yield args
+        finally:
+            args.__dict__.update(original_args.__dict__)
+    else:
+        yield args

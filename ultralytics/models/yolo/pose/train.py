@@ -1,13 +1,14 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
+from __future__ import annotations
+
 from copy import copy
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from ultralytics.models import yolo
 from ultralytics.nn.tasks import PoseModel
 from ultralytics.utils import DEFAULT_CFG, LOGGER
-from ultralytics.utils.plotting import plot_images, plot_results
 
 
 class PoseTrainer(yolo.detect.DetectionTrainer):
@@ -28,7 +29,6 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
         set_model_attributes: Set keypoints shape attribute on the model.
         get_validator: Create a validator instance for model evaluation.
         plot_training_samples: Visualize training samples with keypoints.
-        plot_metrics: Generate and save training/validation metric plots.
         get_dataset: Retrieve the dataset and ensure it contains required kpt_shape key.
 
     Examples:
@@ -38,12 +38,9 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
         >>> trainer.train()
     """
 
-    def __init__(self, cfg=DEFAULT_CFG, overrides: Optional[Dict[str, Any]] = None, _callbacks=None):
+    def __init__(self, cfg=DEFAULT_CFG, overrides: dict[str, Any] | None = None, _callbacks=None):
         """
         Initialize a PoseTrainer object for training YOLO pose estimation models.
-
-        This initializes a trainer specialized for pose estimation tasks, setting the task to 'pose' and
-        handling specific configurations needed for keypoint detection models.
 
         Args:
             cfg (dict, optional): Default configuration dictionary containing training parameters.
@@ -53,12 +50,6 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
         Notes:
             This trainer will automatically set the task to 'pose' regardless of what is provided in overrides.
             A warning is issued when using Apple MPS device due to known bugs with pose models.
-
-        Examples:
-            >>> from ultralytics.models.yolo.pose import PoseTrainer
-            >>> args = dict(model="yolo11n-pose.pt", data="coco8-pose.yaml", epochs=3)
-            >>> trainer = PoseTrainer(overrides=args)
-            >>> trainer.train()
         """
         if overrides is None:
             overrides = {}
@@ -73,8 +64,8 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
 
     def get_model(
         self,
-        cfg: Optional[Union[str, Path, Dict[str, Any]]] = None,
-        weights: Optional[Union[str, Path]] = None,
+        cfg: str | Path | dict[str, Any] | None = None,
+        weights: str | Path | None = None,
         verbose: bool = True,
     ) -> PoseModel:
         """
@@ -100,6 +91,11 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
         """Set keypoints shape attribute of PoseModel."""
         super().set_model_attributes()
         self.model.kpt_shape = self.data["kpt_shape"]
+        kpt_names = self.data.get("kpt_names")
+        if not kpt_names:
+            names = list(map(str, range(self.model.kpt_shape[0])))
+            kpt_names = {i: names for i in range(self.model.nc)}
+        self.model.kpt_names = kpt_names
 
     def get_validator(self):
         """Return an instance of the PoseValidator class for validation."""
@@ -108,45 +104,7 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
             self.test_loader, save_dir=self.save_dir, args=copy(self.args), _callbacks=self.callbacks
         )
 
-    def plot_training_samples(self, batch: Dict[str, Any], ni: int):
-        """
-        Plot a batch of training samples with annotated class labels, bounding boxes, and keypoints.
-
-        Args:
-            batch (dict): Dictionary containing batch data with the following keys:
-                - img (torch.Tensor): Batch of images
-                - keypoints (torch.Tensor): Keypoints coordinates for pose estimation
-                - cls (torch.Tensor): Class labels
-                - bboxes (torch.Tensor): Bounding box coordinates
-                - im_file (list): List of image file paths
-                - batch_idx (torch.Tensor): Batch indices for each instance
-            ni (int): Current training iteration number used for filename
-
-        The function saves the plotted batch as an image in the trainer's save directory with the filename
-        'train_batch{ni}.jpg', where ni is the iteration number.
-        """
-        images = batch["img"]
-        kpts = batch["keypoints"]
-        cls = batch["cls"].squeeze(-1)
-        bboxes = batch["bboxes"]
-        paths = batch["im_file"]
-        batch_idx = batch["batch_idx"]
-        plot_images(
-            images,
-            batch_idx,
-            cls,
-            bboxes,
-            kpts=kpts,
-            paths=paths,
-            fname=self.save_dir / f"train_batch{ni}.jpg",
-            on_plot=self.on_plot,
-        )
-
-    def plot_metrics(self):
-        """Plot training/validation metrics."""
-        plot_results(file=self.csv, pose=True, on_plot=self.on_plot)  # save results.png
-
-    def get_dataset(self) -> Dict[str, Any]:
+    def get_dataset(self) -> dict[str, Any]:
         """
         Retrieve the dataset and ensure it contains the required `kpt_shape` key.
 

@@ -1,6 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
 from collections import defaultdict
+from typing import Any
 
 from ultralytics.solutions.solutions import BaseSolution, SolutionAnnotator, SolutionResults
 
@@ -13,10 +14,10 @@ class AIGym(BaseSolution):
     repetitions of exercises based on predefined angle thresholds for up and down positions.
 
     Attributes:
-        states (Dict[float, int, str]): Stores per-track angle, count, and stage for workout monitoring.
+        states (dict[float, int, str]): Stores per-track angle, count, and stage for workout monitoring.
         up_angle (float): Angle threshold for considering the 'up' position of an exercise.
         down_angle (float): Angle threshold for considering the 'down' position of an exercise.
-        kpts (List[int]): Indices of keypoints used for angle calculation.
+        kpts (list[int]): Indices of keypoints used for angle calculation.
 
     Methods:
         process: Process a frame to detect poses, calculate angles, and count repetitions.
@@ -30,7 +31,7 @@ class AIGym(BaseSolution):
         >>> cv2.waitKey(0)
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize AIGym for workout monitoring using pose estimation and predefined angles.
 
@@ -47,7 +48,7 @@ class AIGym(BaseSolution):
         self.down_angle = float(self.CFG["down_angle"])  # Pose down predefined angle to consider down pose
         self.kpts = self.CFG["kpts"]  # User selected kpts of workouts storage for further usage
 
-    def process(self, im0):
+    def process(self, im0) -> SolutionResults:
         """
         Monitor workouts using Ultralytics YOLO Pose Model.
 
@@ -76,11 +77,10 @@ class AIGym(BaseSolution):
         self.extract_tracks(im0)  # Extract tracks (bounding boxes, classes, and masks)
 
         if len(self.boxes):
-            kpt_data = self.tracks.keypoints.data.cpu()  # Avoid repeated .cpu() calls
+            kpt_data = self.tracks.keypoints.data
 
             for i, k in enumerate(kpt_data):
-                track_id = int(self.track_ids[i])  # get track id
-                state = self.states[track_id]  # get state details
+                state = self.states[self.track_ids[i]]  # get state details
                 # Get keypoints and estimate the angle
                 state["angle"] = annotator.estimate_pose_angle(*[k[int(idx)] for idx in self.kpts])
                 annotator.draw_specific_kpts(k, self.kpts, radius=self.line_width * 3)
