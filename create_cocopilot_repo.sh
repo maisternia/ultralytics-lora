@@ -28,6 +28,11 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --org)
+            if [ -z "$2" ] || [[ "$2" == --* ]]; then
+                echo "Error: --org requires an organization name"
+                echo "Usage: $0 [--private] [--org ORGANIZATION]"
+                exit 1
+            fi
             ORG="$2"
             shift 2
             ;;
@@ -53,16 +58,11 @@ if ! gh auth status &> /dev/null; then
     exit 1
 fi
 
-# Build the create command
-CREATE_CMD="gh repo create $REPO_NAME"
-CREATE_CMD="$CREATE_CMD --description \"$DESCRIPTION\""
-CREATE_CMD="$CREATE_CMD --$VISIBILITY"
-
-# Add organization if specified
+# Determine repository full name
 if [ -n "$ORG" ]; then
-    CREATE_CMD="gh repo create $ORG/$REPO_NAME"
-    CREATE_CMD="$CREATE_CMD --description \"$DESCRIPTION\""
-    CREATE_CMD="$CREATE_CMD --$VISIBILITY"
+    FULL_REPO_NAME="$ORG/$REPO_NAME"
+else
+    FULL_REPO_NAME="$REPO_NAME"
 fi
 
 # Create the repository
@@ -73,8 +73,8 @@ if [ -n "$ORG" ]; then
 fi
 echo ""
 
-# Execute the command
-eval "$CREATE_CMD"
+# Execute the command directly (safer than eval)
+gh repo create "$FULL_REPO_NAME" --description "$DESCRIPTION" "--$VISIBILITY"
 
 # Verify creation
 echo ""
