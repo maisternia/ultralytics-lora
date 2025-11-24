@@ -73,7 +73,7 @@ gh repo view CocoPilot
 # with 'repo' scope
 
 curl -X POST \
-  -H "Authorization: token YOUR_GITHUB_TOKEN" \
+  -H "Authorization: Bearer YOUR_GITHUB_TOKEN" \
   -H "Accept: application/vnd.github.v3+json" \
   https://api.github.com/user/repos \
   -d '{
@@ -92,10 +92,10 @@ After creating the repository, verify it exists:
 # Using GitHub CLI
 gh repo view CocoPilot
 
-# Using git
+# Using git (clone the empty repository)
 git clone https://github.com/YOUR_USERNAME/CocoPilot.git
 cd CocoPilot
-git status  # Should show "On branch main" with no commits
+git status  # Should show "No commits yet" since repository is empty
 ```
 
 Or visit in your browser:
