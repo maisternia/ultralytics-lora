@@ -74,7 +74,7 @@ fi
 echo ""
 
 # Execute the command
-eval $CREATE_CMD
+eval "$CREATE_CMD"
 
 # Verify creation
 echo ""
