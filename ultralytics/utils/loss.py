@@ -215,7 +215,7 @@ class v8DetectionLoss:
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
 
         self.height_loss = nn.SmoothL1Loss(reduction="none")  # Add height loss
-        self.height_loss_weight = getattr(model.args, "height_loss_weight", 0.0)  # Default weight 0.2
+        self.height_loss_weight = getattr(model.args, "height_loss_weight", 2.0)  # Default weight 0.2
         self.loss_names = ["box_loss", "cls_loss", "dfl_loss", "height_loss"]  # Add height_loss to names
 
     def preprocess(self, targets: torch.Tensor, batch_size: int, scale_tensor: torch.Tensor) -> torch.Tensor:
@@ -296,8 +296,9 @@ class v8DetectionLoss:
 
             # Add height loss calculation
             if self.height_loss_weight > 0:
-                pred_heights = pred_bboxes[fg_mask, 3]  # Get predicted heights
-                target_heights = target_bboxes[fg_mask, 3]  # Get target heights
+                # Calculate actual heights (y2 - y1), not just y2 coordinates
+                pred_heights = (pred_bboxes[fg_mask, 3] - pred_bboxes[fg_mask, 1]).clamp_min(1e-6)
+                target_heights = (target_bboxes[fg_mask, 3] - target_bboxes[fg_mask, 1]).clamp_min(1e-6)
                 loss[3] = self.khz_height_loss(pred_heights, target_heights)
                 print(f"\nHeight Loss: {loss[3] * self.height_loss_weight :.3f}")
 
@@ -320,9 +321,11 @@ class v8DetectionLoss:
 
         # Calculate height loss using log space for scale invariance
         eps = 1e-7  # Small epsilon to prevent log(0)
+        pred_heights = pred_heights.clamp_min(eps)
+        target_heights = target_heights.clamp_min(eps)
         height_loss = self.height_loss(
-            torch.log(pred_heights + eps),
-            torch.log(target_heights + eps),
+            torch.log(pred_heights),
+            torch.log(target_heights),
         ).mean()
 
         return height_loss
