@@ -20,9 +20,9 @@ ResearchData/
     └── verify_dataset.py   # Pre-flight check for a YOLO dataset
 ```
 
-The four data folders are tracked but effectively empty: `ResearchData/.gitignore` keeps captures, images and archives
-out of git while letting every `README.md`, `*.yaml`, `*.csv` and `*.json` through. That is deliberate — the repo should
-describe the data, not carry it.
+The four data folders are tracked but nearly empty: `ResearchData/.gitignore` keeps captures, images and archives out of
+git while letting every `README.md`, `*.yaml`, `*.csv`, `*.json` and `*.txt` through. That is deliberate — the repo
+carries the *description* of the data plus the labels, which are small and irreplaceable, and not the bytes.
 
 ## Naming conventions
 

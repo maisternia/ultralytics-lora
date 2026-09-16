@@ -42,4 +42,6 @@ Split by **capture session**, not by random shuffle. Consecutive spectrogram fra
 content; a random split puts near-duplicates on both sides and inflates val mAP by a wide margin. Note the split rule in
 `DATASET_CARD.md` so the number means something.
 
-Dataset images and labels are gitignored — `data.yaml` and `DATASET_CARD.md` are not.
+Images are gitignored. **Labels are not** — they are small, diffable, and the one artifact here you cannot regenerate,
+so they are versioned on purpose. If a dataset ever grows past a few tens of thousands of frames, archive the labels
+instead of tracking them individually and note that in `DATASET_CARD.md`.

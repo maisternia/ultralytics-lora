@@ -36,6 +36,9 @@
 # Dataset scan caches ------------------------------------------------------------------------------------------------
 *.cache
 
+# Note: *.txt is deliberately NOT ignored. YOLO label files are small, diffable and cannot be regenerated, so they are
+# versioned along with the dataset card. Reviewer notes, capture logs and similar text belong in git for the same reason.
+
 # Training outputs (also ignored by the repo-root .gitignore, repeated here so this folder is self-describing) --------
 runs/
 
