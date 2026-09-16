@@ -1,0 +1,43 @@
+# ResearchData/.gitignore
+#
+# Rule of thumb: the *description* of an experiment is versioned, the *bytes* are not.
+# Markdown, YAML, CSV and JSON stay in git. Captures, spectrograms and weights do not.
+
+# Raw captures and array dumps ---------------------------------------------------------------------------------------
+*.iq
+*.cf32
+*.cs16
+*.sigmf-data
+*.bin
+*.dat
+*.wav
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.mat
+
+# Rendered spectrograms ----------------------------------------------------------------------------------------------
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tif
+*.tiff
+*.webp
+
+# Archives -----------------------------------------------------------------------------------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# Dataset scan caches ------------------------------------------------------------------------------------------------
+*.cache
+
+# Training outputs (also ignored by the repo-root .gitignore, repeated here so this folder is self-describing) --------
+runs/
+
+# Keep placeholder images that document a format, if you ever add one --------------------------------------------------
+!docs/**/*.png

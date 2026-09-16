@@ -1,0 +1,57 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# Experiment configuration template. Copy with the folder, edit the TODOs, and keep it next to EXPERIMENT.md so the
+# record and the config that produced it never drift apart.
+
+task: detect
+mode: train
+
+# Data and model -------------------------------------------------------------------------------------------------------
+data: ResearchData/datasets/TODO-dataset-id/data.yaml
+model: yolo11n.pt
+project: runs/detect
+name: EXP000_todo-slug
+
+# Schedule -------------------------------------------------------------------------------------------------------------
+epochs: 100
+patience: 50
+batch: 16
+imgsz: 1024
+device: TODO # mps | cuda | cpu
+
+# Reproducibility — leave these alone unless the experiment is specifically about throughput ---------------------------
+seed: 0
+deterministic: true
+workers: 0
+
+# Optimizer ------------------------------------------------------------------------------------------------------------
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.01
+weight_decay: 0.0005
+warmup_epochs: 3.0
+
+# Loss weights ---------------------------------------------------------------------------------------------------------
+box: 7.5
+cls: 0.5
+dfl: 1.5
+
+# Augmentation — spectrograms are not photographs. Time and frequency axes carry physical meaning, so geometric and
+# colour augmentations that are free wins on COCO can be actively harmful here. Turn one on only with a reason.
+hsv_h: 0.0
+hsv_s: 0.0
+hsv_v: 0.0
+degrees: 0.0 # rotation mixes the time and frequency axes
+translate: 0.1
+scale: 0.5
+shear: 0.0
+perspective: 0.0
+flipud: 0.0 # vertical flip inverts the chirp slope
+fliplr: 0.0 # horizontal flip reverses time
+mosaic: 0.0 # stitches unrelated captures into one frame
+mixup: 0.0
+
+# Output ---------------------------------------------------------------------------------------------------------------
+val: true
+plots: true
+save: true

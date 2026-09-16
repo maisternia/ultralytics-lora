@@ -1,0 +1,20 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# YOLO dataset configuration template for LoRa spectrogram detection.
+# Copy this folder to ResearchData/datasets/<dataset-id>/ and edit every TODO.
+
+# Root of this dataset. Relative paths resolve against Ultralytics' datasets dir, so prefer an absolute path or a path
+# relative to the repository root that you pass explicitly.
+path: ResearchData/datasets/TODO-dataset-id
+
+# Image folders, relative to `path`. Labels are located by swapping `images` -> `labels` and the extension -> `.txt`.
+train: images/train
+val: images/val
+# test: images/test  # optional held-out split
+
+# Class names. Keep ids stable across datasets — renumbering classes invalidates every label file that used the old ids.
+names:
+  0: lora_signal
+
+# Spectrograms are rendered as 3-channel images (magnitude replicated across RGB).
+channels: 3
